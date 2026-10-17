@@ -15,7 +15,7 @@ Android-App, die Instagram Reels, YouTube Shorts und TikTok auf ein Tageslimit b
 
 **Mit Android Studio:** Projekt öffnen, Handy per USB (USB-Debugging an) verbinden, ▶ Run.
 
-**Fertige APK:** Unter *Actions → Build APK → letzter Lauf → Artifacts* liegt `doomscroll-apk` zum Herunterladen.
+**Fertige APK:** Unter [Releases](../../releases/latest) die Datei `doomscroll-blocker-vX.Y.apk` aufs Handy laden und öffnen. Ein neues Release entsteht automatisch, wenn ein Tag wie `v1.1` gepusht wird.
 
 Danach:
 1. App öffnen und auf **Bedienungshilfen öffnen** tippen.
