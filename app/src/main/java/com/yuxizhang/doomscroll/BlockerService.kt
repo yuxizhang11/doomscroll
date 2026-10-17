@@ -1,0 +1,194 @@
+package com.yuxizhang.doomscroll
+
+import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
+import android.widget.TextView
+
+/**
+ * Watches Instagram, YouTube and TikTok through the accessibility API.
+ *
+ * Efficiency: the system only wakes this service for events from the watched apps
+ * (see accessibility_config.xml). While a short video screen is open it re-checks every
+ * few seconds to notice when you leave, and a single timer fires exactly when the daily
+ * limit runs out. Outside those apps nothing runs at all.
+ */
+class BlockerService : AccessibilityService() {
+
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var store: Store
+
+    private var activeApp: TargetApp? = null
+    private var sessionStart = 0L
+    private var lastBlockAt = 0L
+    private var overlay: View? = null
+
+    private val checkScreen = Runnable { onScreenMaybeChanged() }
+    private val hideOverlay = Runnable { removeOverlay() }
+
+    private val poll = object : Runnable {
+        override fun run() {
+            onScreenMaybeChanged()
+            if (activeApp != null) handler.postDelayed(this, POLL_MS)
+        }
+    }
+
+    private val limitReached = Runnable {
+        val app = activeApp ?: return@Runnable
+        endSession()
+        if (detectShortForm() == app) block(app)
+    }
+
+    private val screenOff = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = endSession()
+    }
+
+    override fun onServiceConnected() {
+        store = Store.get(this)
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenOff, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(screenOff, filter)
+        }
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Events arrive in bursts while videos play; look at the screen once they settle.
+        handler.removeCallbacks(checkScreen)
+        handler.postDelayed(checkScreen, DEBOUNCE_MS)
+    }
+
+    override fun onInterrupt() = Unit
+
+    override fun onDestroy() {
+        endSession()
+        runCatching { unregisterReceiver(screenOff) }
+        removeOverlay()
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+
+    private fun onScreenMaybeChanged() {
+        val app = detectShortForm()
+        when {
+            app == null -> endSession()
+            app != activeApp -> startSession(app)
+            else -> flushUsage()
+        }
+    }
+
+    private fun detectShortForm(): TargetApp? {
+        val root = rootInActiveWindow ?: return null
+        val app = TargetApp.fromPackage(root.packageName) ?: return null
+        return if (app.isShortFormOnScreen(root)) app else null
+    }
+
+    private fun startSession(app: TargetApp) {
+        endSession()
+        val remaining = store.remainingMs(app)
+        if (remaining != null && remaining <= 0) {
+            block(app)
+            return
+        }
+        activeApp = app
+        sessionStart = SystemClock.elapsedRealtime()
+        handler.postDelayed(poll, POLL_MS)
+        if (remaining != null) handler.postDelayed(limitReached, remaining)
+    }
+
+    private fun endSession() {
+        flushUsage()
+        activeApp = null
+        handler.removeCallbacks(poll)
+        handler.removeCallbacks(limitReached)
+    }
+
+    /** Writes the time since the last flush, so nothing is lost if the process dies. */
+    private fun flushUsage() {
+        val app = activeApp ?: return
+        val now = SystemClock.elapsedRealtime()
+        store.addUsage(app, now - sessionStart)
+        sessionStart = now
+    }
+
+    private fun block(app: TargetApp) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastBlockAt > OVERLAY_COOLDOWN_MS) showOverlay()
+        lastBlockAt = now
+
+        if (app.wholeAppIsShortForm) {
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            return
+        }
+        // Back leaves Reels/Shorts and keeps the rest of the app usable.
+        // If that is not enough, try once more and then fall back to the home screen.
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        handler.postDelayed({
+            if (detectShortForm() == app) {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                handler.postDelayed({
+                    if (detectShortForm() == app) performGlobalAction(GLOBAL_ACTION_HOME)
+                }, RETRY_MS)
+            }
+        }, RETRY_MS)
+    }
+
+    private fun showOverlay() {
+        removeOverlay()
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        val dp = { v: Float -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics) }
+        val view = TextView(this).apply {
+            text = "Genug für heute! ✋"
+            setTextColor(0xFFFFFFFF.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            gravity = Gravity.CENTER
+            val pad = dp(24f).toInt()
+            setPadding(pad, pad, pad, pad)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(20f)
+                setColor(0xEE222222.toInt())
+            }
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.CENTER }
+        runCatching {
+            wm.addView(view, params)
+            overlay = view
+            handler.postDelayed(hideOverlay, OVERLAY_MS)
+        }
+    }
+
+    private fun removeOverlay() {
+        handler.removeCallbacks(hideOverlay)
+        val view = overlay ?: return
+        overlay = null
+        runCatching { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view) }
+    }
+
+    companion object {
+        private const val DEBOUNCE_MS = 250L
+        private const val POLL_MS = 5_000L
+        private const val RETRY_MS = 600L
+        private const val OVERLAY_MS = 2_500L
+        private const val OVERLAY_COOLDOWN_MS = 4_000L
+    }
+}
