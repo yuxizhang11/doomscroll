@@ -31,7 +31,7 @@ class Ui(private val context: Context) {
     private val dark =
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
-    val background = if (dark) 0xFF0F0F14.toInt() else 0xFFF4F4F8.toInt()
+    val pageColor = if (dark) 0xFF0F0F14.toInt() else 0xFFF4F4F8.toInt()
     val surface = if (dark) 0xFF1B1B24.toInt() else 0xFFFFFFFF.toInt()
     val textColor = if (dark) 0xFFF2F2F7.toInt() else 0xFF1A1A2E.toInt()
     val muted = if (dark) 0xFF9A9AAE.toInt() else 0xFF6B6B80.toInt()
@@ -50,11 +50,11 @@ class Ui(private val context: Context) {
     fun styleWindow(activity: Activity) {
         activity.actionBar?.hide()
         val window = activity.window
-        window.decorView.setBackgroundColor(background)
+        window.decorView.setBackgroundColor(pageColor)
         @Suppress("DEPRECATION")
-        window.statusBarColor = background
+        window.statusBarColor = pageColor
         @Suppress("DEPRECATION")
-        window.navigationBarColor = background
+        window.navigationBarColor = pageColor
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
                 WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
@@ -73,7 +73,7 @@ class Ui(private val context: Context) {
         return ScrollView(context).apply {
             fitsSystemWindows = true
             isVerticalScrollBarEnabled = false
-            setBackgroundColor(background)
+            setBackgroundColor(pageColor)
             addView(content)
         }
     }
