@@ -35,26 +35,15 @@ object AdultFilter {
         "com.mi.globalbrowser" to listOf("com.mi.globalbrowser:id/url"),
     )
 
-    /** Names of porn sites; matched anywhere, so searching for them is caught too. Always blocked. */
+    /** Names of porn sites; matched anywhere, so searching for them is caught too. */
     private val SITE_NAMES = listOf(
         "pornhub", "xvideos", "xnxx", "xhamster", "redtube", "youporn", "brazzers",
         "onlyfans", "chaturbate", "stripchat", "camsoda", "bongacams", "livejasmin",
         "spankbang", "eporner", "tnaflix", "motherless", "fapello", "thothub",
     )
 
-    /** Porn words in searches; blocked unless the search is clearly about the topic, see [LEARNING]. */
+    /** Porn words; matched anywhere, so searches for them are caught too. */
     private val KEYWORDS = listOf("porn", "xxx", "hentai", "rule34", "nudes", "milf")
-
-    /**
-     * Words that make a search about porn rather than for it, e.g.
-     * "wie Pornos die Gesellschaft kaputt machen" or "porn addiction study".
-     */
-    private val LEARNING = listOf(
-        "gesellschaft", "sucht", "süchtig", "abhängig", "studie", "forschung", "gefahr", "schad",
-        "schäd", "auswirkung", "folgen", "aufhören", "loskommen", "gehirn", "doku", "kaputt",
-        "warum", "psycholog", "society", "addict", "quit", "effect", "harm", "study", "research",
-        "brain", "nofap", "documentary", "recovery",
-    )
 
     /** Adult sites whose name contains none of the words above. */
     private val DOMAINS = listOf(
@@ -100,19 +89,10 @@ object AdultFilter {
         }
     }
 
-    /** A porn site or a search for porn; searches about the topic stay open. */
+    /** A porn site or a search for porn. */
     fun isPorn(address: String): Boolean {
-        if (isPornSite(address)) return true
         val text = address.lowercase()
-        return text.lines().any { line ->
-            KEYWORDS.any { it in line } && LEARNING.none { it in line }
-        }
-    }
-
-    /** A porn site by name or address, whatever else is written around it. */
-    fun isPornSite(address: String): Boolean {
-        val text = address.lowercase()
-        if (SITE_NAMES.any { it in text }) return true
+        if (SITE_NAMES.any { it in text } || KEYWORDS.any { it in text }) return true
         return text.lines().any { line ->
             val host = line.trim().substringAfter("://").substringBefore('/').substringBefore('?').removePrefix("www.")
             DOMAINS.any { host == it || host.endsWith(".$it") }
