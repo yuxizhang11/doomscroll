@@ -31,6 +31,7 @@ class MainActivity : Activity() {
     private var globalLimit = 0
     private val enabled = mutableMapOf<TargetApp, Boolean>()
     private val limits = mutableMapOf<TargetApp, Int>()
+    private var warnMinutes = 0
     private var quietEnabled = false
     private var quietStart = 0
     private var quietEnd = 0
@@ -68,6 +69,7 @@ class MainActivity : Activity() {
             enabled[app] = store.isEnabled(app)
             limits[app] = store.limitMinutes(app)
         }
+        warnMinutes = store.warnMinutes
         quietEnabled = store.quietEnabled
         quietStart = store.quietStart
         quietEnd = store.quietEnd
@@ -204,6 +206,10 @@ class MainActivity : Activity() {
             card.addView(appSteppers.getValue(app))
         }
         card.addView(ui.body("TikTok zählt komplett, weil es fast nur aus dem Video-Feed besteht."))
+        card.addView(ui.spacer(10f))
+        card.addView(ui.label("Vorwarnung", 16f, ui.textColor, bold = true))
+        card.addView(stepper("Minuten vor Ablauf", warnMinutes) { warnMinutes = it })
+        card.addView(ui.body("0 schaltet sie aus. Ist das Limit nicht länger als die Vorwarnung, kommt keine."))
         card.addView(ui.primaryButton("Speichern") { save() })
         showMode()
         return card
@@ -345,7 +351,7 @@ class MainActivity : Activity() {
     }
 
     private fun save() {
-        val next = PendingSettings(perAppMode, globalLimit, enabled.toMap(), limits.toMap(), quietEnabled, quietStart, quietEnd)
+        val next = PendingSettings(perAppMode, globalLimit, enabled.toMap(), limits.toMap(), warnMinutes, quietEnabled, quietStart, quietEnd)
         if (loosens(next)) {
             pending = next
             @Suppress("DEPRECATION")
@@ -382,6 +388,7 @@ class MainActivity : Activity() {
             store.setEnabled(app, settings.enabled.getValue(app))
             store.setLimitMinutes(app, settings.limits.getValue(app))
         }
+        store.warnMinutes = settings.warnMinutes
         store.quietEnabled = settings.quietEnabled
         store.quietStart = settings.quietStart
         store.quietEnd = settings.quietEnd
@@ -406,6 +413,7 @@ class MainActivity : Activity() {
         val globalLimit: Int,
         val enabled: Map<TargetApp, Boolean>,
         val limits: Map<TargetApp, Int>,
+        val warnMinutes: Int,
         val quietEnabled: Boolean,
         val quietStart: Int,
         val quietEnd: Int,

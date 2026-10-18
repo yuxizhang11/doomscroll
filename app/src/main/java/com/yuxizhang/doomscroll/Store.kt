@@ -57,7 +57,15 @@ class Store private constructor(context: Context) {
         return (startMs - nowMs).mod(DAY_MS).let { if (it == 0L) DAY_MS else it }
     }
 
-    /** The 5-minute warning is shown once a day per limit. */
+    /** Minutes before the limit runs out when the warning shows; 0 switches it off. */
+    var warnMinutes: Int
+        get() = prefs.getInt(KEY_WARN, 5)
+        set(value) = prefs.edit().putInt(KEY_WARN, value.coerceAtLeast(0)).apply()
+
+    /** The daily limit that applies to [app], shared or its own. */
+    fun limitFor(app: TargetApp): Int = if (perAppMode) limitMinutes(app) else globalLimitMinutes
+
+    /** The warning is shown once a day per limit. */
     fun wasWarnedToday(app: TargetApp): Boolean {
         ensureToday()
         return prefs.getBoolean(warnKey(app), false)
@@ -181,6 +189,7 @@ class Store private constructor(context: Context) {
         private const val DAY_MS = 24 * 60 * MINUTE
         private const val HISTORY = "hist_"
         private const val HISTORY_DAYS = 30L
+        private const val KEY_WARN = "warning_minutes" // not "warn_", those are wiped daily
         private const val KEY_QUIET = "quiet"
         private const val KEY_QUIET_START = "quiet_start"
         private const val KEY_QUIET_END = "quiet_end"

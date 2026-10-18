@@ -204,7 +204,11 @@ class BlockerService : AccessibilityService() {
         handler.postDelayed(poll, POLL_MS)
         if (remaining != null) {
             handler.postDelayed(limitReached, remaining)
-            if (!store.wasWarnedToday(app)) handler.postDelayed(warn, (remaining - WARN_BEFORE_MS).coerceAtLeast(0))
+            // A warning only makes sense when the limit is longer than the warning time.
+            val warnMinutes = store.warnMinutes
+            if (warnMinutes > 0 && store.limitFor(app) > warnMinutes && !store.wasWarnedToday(app)) {
+                handler.postDelayed(warn, (remaining - warnMinutes * Store.MINUTE).coerceAtLeast(0))
+            }
         }
     }
 
@@ -287,7 +291,6 @@ class BlockerService : AccessibilityService() {
         private const val DEBOUNCE_MS = 250L
         private const val BROWSER_CHECK_MS = 500L
         private const val POLL_MS = 5_000L
-        private const val WARN_BEFORE_MS = 5 * Store.MINUTE
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L
         private const val OVERLAY_COOLDOWN_MS = 4_000L
