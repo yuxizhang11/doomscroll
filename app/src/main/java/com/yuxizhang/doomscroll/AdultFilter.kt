@@ -55,35 +55,35 @@ object AdultFilter {
     fun isBrowser(pkg: CharSequence?): Boolean = pkg != null && pkg.toString() in BROWSERS
 
     /**
-     * The address shown in the browser's bar, unless you are typing in it right now.
+     * The address shown in the browser's bar, or what is being typed into it.
      * Newer browser versions (Firefox since its Compose toolbar) have no fixed view ids, so
-     * when none is found the browser's own controls are read instead, leaving out the page itself.
+     * when none is found the browser's own controls are read instead (address bar and search
+     * suggestions), leaving out the page itself.
      */
     fun currentAddress(root: AccessibilityNodeInfo): String? {
         val ids = BROWSERS[root.packageName?.toString()] ?: return null
         for (id in ids) {
             for (node in root.findAccessibilityNodeInfosByViewId(id)) {
-                if (node.isFocused) return null
                 val text = node.text?.toString()
                 if (!text.isNullOrBlank()) return text
             }
         }
         val texts = StringBuilder()
-        if (!collectChromeText(root, texts, 0)) return null
+        collectChromeText(root, texts, 0)
         return texts.toString().ifBlank { null }
     }
 
-    /** Collects text outside the web page; false when the address bar is being typed in. */
-    private fun collectChromeText(node: AccessibilityNodeInfo, out: StringBuilder, depth: Int): Boolean {
+    /** The text field you are typing in right now, if any. */
+    fun typingField(root: AccessibilityNodeInfo): AccessibilityNodeInfo? =
+        root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }
+
+    private fun collectChromeText(node: AccessibilityNodeInfo, out: StringBuilder, depth: Int) {
         val cls = node.className?.toString().orEmpty()
-        if ("WebView" in cls || "GeckoView" in cls || depth > MAX_DEPTH) return true
-        if (node.isEditable && node.isFocused) return false
+        if ("WebView" in cls || "GeckoView" in cls || depth > MAX_DEPTH) return
         node.text?.let { out.append(it).append('\n') }
         for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            if (!collectChromeText(child, out, depth + 1)) return false
+            node.getChild(i)?.let { collectChromeText(it, out, depth + 1) }
         }
-        return true
     }
 
     fun isPorn(address: String): Boolean {
