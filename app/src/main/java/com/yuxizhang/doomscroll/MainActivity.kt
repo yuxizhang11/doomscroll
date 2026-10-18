@@ -5,7 +5,12 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
+import android.text.Editable
+import android.text.InputFilter
+import android.text.InputType
+import android.text.TextWatcher
 import android.text.format.DateFormat
+import android.view.Gravity
 import android.view.View
 import android.widget.Toast
 import java.util.Date
@@ -146,22 +151,35 @@ class MainActivity : Activity() {
         return card
     }
 
-    /** "Label   −  15 min  +" in 5-minute steps. */
-    private fun stepper(label: String, start: Int, onChange: (Int) -> Unit): View {
-        var value = start
-        val shown = ui.label("$value min", 16f, ui.textColor, bold = true).apply {
-            gravity = android.view.Gravity.CENTER
-            minWidth = ui.dp(76f)
+    /** "Label   −  [15] min  +": type any number of minutes, or step by 5 with the buttons. */
+    private fun stepper(label: String, initial: Int, onChange: (Int) -> Unit): View {
+        val field = ui.input("0").apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(InputFilter.LengthFilter(3))
+            setText(initial.toString())
+            gravity = Gravity.CENTER
+            setPadding(ui.dp(6f), ui.dp(8f), ui.dp(6f), ui.dp(8f))
+            minWidth = ui.dp(56f)
+            setSelectAllOnFocus(true)
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                override fun afterTextChanged(s: Editable?) {
+                    onChange((s?.toString()?.toIntOrNull() ?: 0).coerceIn(0, MAX_MINUTES))
+                }
+            })
         }
         fun change(delta: Int) {
-            value = (value + delta).coerceIn(0, MAX_MINUTES)
-            shown.text = "$value min"
-            onChange(value)
+            val now = field.text.toString().toIntOrNull() ?: 0
+            field.setText((now + delta).coerceIn(0, MAX_MINUTES).toString())
         }
         return ui.row(
             ui.body(label),
             ui.roundButton("−") { change(-STEP_MINUTES) },
-            shown,
+            ui.spacer(0f).apply { layoutParams = android.widget.LinearLayout.LayoutParams(ui.dp(8f), 1) },
+            field,
+            ui.label(" min", 16f, ui.textColor),
+            ui.spacer(0f).apply { layoutParams = android.widget.LinearLayout.LayoutParams(ui.dp(8f), 1) },
             ui.roundButton("+") { change(STEP_MINUTES) },
         ).apply { setPadding(0, ui.dp(6f), 0, ui.dp(6f)) }
     }
