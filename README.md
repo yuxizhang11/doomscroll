@@ -9,6 +9,7 @@ Android-App, die Instagram Reels, YouTube Shorts und TikTok auf ein Tageslimit b
 - Ist das Limit erreicht, erscheint **„Genug für heute!“** und die App geht aus Reels/Shorts zurück. Bei TikTok geht es zum Startbildschirm, weil TikTok fast nur aus dem Feed besteht.
 - Limit wahlweise gemeinsam für alle Apps oder pro App. Um Mitternacht wird alles zurückgesetzt.
 - Sperre aufheben: in der Blocker-App einen vorgegebenen Satz mit mindestens 15 Wörtern abtippen (Einfügen ist gesperrt). Gilt nur für heute, pro App oder für alle. Auch ein Lockern der Limits braucht den Satz.
+- **Porno-Blocker:** In Chrome, Firefox, Samsung Internet, Brave, Edge, Opera, DuckDuckGo, Vivaldi und Kiwi liest die App nur die Adresszeile. Steht dort eine pornografische Seite oder Suche, geht es zurück und „Diese Seite ist gesperrt“ erscheint. Andere Seiten bleiben offen. Für heute aufheben oder ausschalten geht nur, indem man 20 zufällige Zeichen abtippt. Die Liste steht in [`AdultFilter.kt`](app/src/main/java/com/yuxizhang/doomscroll/AdultFilter.kt).
 - App deinstallieren = Blocker weg.
 
 ## Installieren

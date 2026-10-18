@@ -32,6 +32,23 @@ class Store private constructor(context: Context) {
     fun setEnabled(app: TargetApp, enabled: Boolean) =
         prefs.edit().putBoolean("enabled_${app.name}", enabled).apply()
 
+    /** Porn blocker for browsers; on unless switched off with the 20-character code. */
+    var adultFilterEnabled: Boolean
+        get() = prefs.getBoolean(KEY_ADULT, true)
+        set(value) = prefs.edit().putBoolean(KEY_ADULT, value).apply()
+
+    fun isAdultUnlockedToday(): Boolean {
+        ensureToday()
+        return prefs.getBoolean(KEY_ADULT_UNLOCK, false)
+    }
+
+    fun unlockAdultToday() {
+        ensureToday()
+        prefs.edit().putBoolean(KEY_ADULT_UNLOCK, true).apply()
+    }
+
+    fun isAdultFilterActive(): Boolean = adultFilterEnabled && !isAdultUnlockedToday()
+
     fun usageMs(app: TargetApp): Long {
         ensureToday()
         return prefs.getLong("usage_${app.name}", 0L)
@@ -85,6 +102,8 @@ class Store private constructor(context: Context) {
         private const val KEY_PER_APP = "per_app_mode"
         private const val KEY_GLOBAL_LIMIT = "global_limit"
         private const val KEY_DAY = "day"
+        private const val KEY_ADULT = "adult_filter"
+        private const val KEY_ADULT_UNLOCK = "unlock_adult_filter"
 
         @Volatile
         private var instance: Store? = null
