@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputFilter
@@ -47,6 +48,7 @@ class MainActivity : Activity() {
             when (requestCode) {
                 REQUEST_SETTINGS -> pending?.let { apply(it) }
                 REQUEST_ADULT_OFF -> store.adultFilterEnabled = false
+                REQUEST_APP_SETTINGS -> openAppSettings()
             }
         }
         pending = null
@@ -81,6 +83,7 @@ class MainActivity : Activity() {
             return ui.card(
                 ui.row(ui.cardTitle("Blocker ist aktiv"), ui.pill("AN", ui.successSoft, ui.success)),
                 ui.body("Läuft sparsam im Hintergrund und wird nur in Instagram, YouTube, TikTok, Browsern und den Einstellungen wach."),
+                appSettingsButton(),
             )
         }
         return ui.card(
@@ -89,6 +92,8 @@ class MainActivity : Activity() {
             ui.primaryButton("Bedienungshilfen öffnen") {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             },
+            ui.body("Ist der Schalter ausgegraut, erlaube in den App-Einstellungen über ⋮ zuerst „Eingeschränkte Einstellungen zulassen“."),
+            appSettingsButton(),
             color = ui.dangerSoft,
         )
     }
@@ -213,6 +218,22 @@ class MainActivity : Activity() {
         return card
     }
 
+    /**
+     * Opens this app's page in the system settings. While the blocker guards that page,
+     * the protection has to be lifted first, or the page would close right away.
+     */
+    private fun appSettingsButton(): View = ui.secondaryButton("App-Einstellungen öffnen") {
+        if (isServiceEnabled() && store.isProtectionActive()) {
+            startActivityForResult(UnlockActivity.intent(this, UnlockActivity.SCOPE_PROTECTION), REQUEST_APP_SETTINGS)
+        } else {
+            openAppSettings()
+        }
+    }
+
+    private fun openAppSettings() {
+        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+    }
+
     private fun protectionCard(): View {
         val card = ui.card(
             ui.cardTitle("Schutz vor Abschalten"),
@@ -322,6 +343,7 @@ class MainActivity : Activity() {
     companion object {
         private const val REQUEST_SETTINGS = 1
         private const val REQUEST_ADULT_OFF = 2
+        private const val REQUEST_APP_SETTINGS = 3
         private const val STEP_MINUTES = 5
         private const val MAX_MINUTES = 600
     }
