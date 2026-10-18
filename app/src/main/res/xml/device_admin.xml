@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No policies: being a device admin only makes Android refuse to uninstall the app until it is deactivated. -->
+<device-admin>
+    <uses-policies />
+</device-admin>

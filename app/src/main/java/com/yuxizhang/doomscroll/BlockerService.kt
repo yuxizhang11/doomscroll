@@ -19,8 +19,8 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.TextView
 
 /**
- * Watches Instagram, YouTube and TikTok through the accessibility API, and the address bar
- * of common browsers for pornographic sites.
+ * Watches Instagram, YouTube and TikTok through the accessibility API, the address bar
+ * of common browsers for pornographic sites, and the system screens that could switch it off.
  *
  * Efficiency: the system only wakes this service for events from the watched apps
  * (see accessibility_config.xml). While a short video screen is open it re-checks every
@@ -39,6 +39,7 @@ class BlockerService : AccessibilityService() {
 
     private val checkScreen = Runnable { onScreenMaybeChanged() }
     private val checkBrowser = Runnable { onBrowserMaybeChanged() }
+    private val checkGuard = Runnable { onSettingsMaybeChanged() }
     private val hideOverlay = Runnable { removeOverlay() }
 
     private val poll = object : Runnable {
@@ -74,6 +75,11 @@ class BlockerService : AccessibilityService() {
                 handler.removeCallbacks(checkBrowser)
                 handler.postDelayed(checkBrowser, DEBOUNCE_MS)
             }
+            return
+        }
+        if (event != null && Guard.isWatched(event.packageName)) {
+            handler.removeCallbacks(checkGuard)
+            handler.postDelayed(checkGuard, DEBOUNCE_MS)
             return
         }
         // Events arrive in bursts while videos play; look at the screen once they settle.
@@ -115,6 +121,20 @@ class BlockerService : AccessibilityService() {
             val still = now != null && now.packageName == pkg &&
                 AdultFilter.currentAddress(now)?.let(AdultFilter::isPorn) == true
             if (still) performGlobalAction(GLOBAL_ACTION_HOME)
+        }, RETRY_MS)
+    }
+
+    private fun onSettingsMaybeChanged() {
+        if (!store.isProtectionActive()) return
+        val root = rootInActiveWindow ?: return
+        if (!Guard.isWatched(root.packageName) || !Guard.isTamperScreen(root)) return
+        showOverlay("Geschützt 🔒\nErst in Doomscroll Blocker mit 20 Zeichen freischalten")
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        handler.postDelayed({
+            val now = rootInActiveWindow
+            if (now != null && Guard.isWatched(now.packageName) && Guard.isTamperScreen(now)) {
+                performGlobalAction(GLOBAL_ACTION_HOME)
+            }
         }, RETRY_MS)
     }
 

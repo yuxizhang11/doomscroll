@@ -1,6 +1,8 @@
 package com.yuxizhang.doomscroll
 
 import android.app.Activity
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
@@ -30,7 +32,7 @@ class UnlockActivity : Activity() {
 
         val scope = intent.getStringExtra(EXTRA_SCOPE) ?: SCOPE_ALL
         val app = TargetApp.entries.firstOrNull { it.name == scope }
-        val adult = scope == SCOPE_ADULT || scope == SCOPE_ADULT_OFF
+        val adult = scope == SCOPE_ADULT || scope == SCOPE_ADULT_OFF || scope == SCOPE_PROTECTION
         challenge = savedInstanceState?.getString(KEY_CHALLENGE)
             ?: if (adult) randomCode() else SENTENCES.random()
 
@@ -39,6 +41,7 @@ class UnlockActivity : Activity() {
             SCOPE_ALL -> "Um die Sperre heute für alle Apps aufzuheben"
             SCOPE_ADULT -> "Um den Porno-Blocker heute aufzuheben"
             SCOPE_ADULT_OFF -> "Um den Porno-Blocker auszuschalten"
+            SCOPE_PROTECTION -> "Um den Schutz für ${PROTECTION_MINUTES} Minuten aufzuheben"
             else -> "Um die Sperre heute für ${app?.label} aufzuheben"
         }
         val instruction = if (adult) {
@@ -86,11 +89,15 @@ class UnlockActivity : Activity() {
             when (scope) {
                 SCOPE_SETTINGS, SCOPE_ADULT_OFF -> Unit
                 SCOPE_ADULT -> Store.get(this).unlockAdultToday()
+                SCOPE_PROTECTION -> liftProtection()
                 else -> Store.get(this).unlockToday(app)
             }
-            if (scope != SCOPE_SETTINGS && scope != SCOPE_ADULT_OFF) {
-                Toast.makeText(this, "Für heute aufgehoben.", Toast.LENGTH_SHORT).show()
+            val done = when (scope) {
+                SCOPE_SETTINGS, SCOPE_ADULT_OFF -> null
+                SCOPE_PROTECTION -> "Schutz für $PROTECTION_MINUTES Minuten aufgehoben."
+                else -> "Für heute aufgehoben."
             }
+            done?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
             setResult(RESULT_OK)
             finish()
         }
@@ -112,6 +119,14 @@ class UnlockActivity : Activity() {
         )
     }
 
+    /** Opens a short window and drops device admin, so uninstalling or switching off works. */
+    private fun liftProtection() {
+        Store.get(this).protectionUnlockedUntil = System.currentTimeMillis() + PROTECTION_MINUTES * Store.MINUTE
+        val dpm = getSystemService(DevicePolicyManager::class.java)
+        val admin = ComponentName(this, AdminReceiver::class.java)
+        if (dpm.isAdminActive(admin)) dpm.removeActiveAdmin(admin)
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(KEY_CHALLENGE, challenge)
@@ -131,6 +146,8 @@ class UnlockActivity : Activity() {
         const val SCOPE_SETTINGS = "SETTINGS"
         const val SCOPE_ADULT = "ADULT"
         const val SCOPE_ADULT_OFF = "ADULT_OFF"
+        const val SCOPE_PROTECTION = "PROTECTION"
+        const val PROTECTION_MINUTES = 15
 
         // No look-alikes such as 0/O or 1/l/I, so the code can be typed without guessing.
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"

@@ -49,6 +49,21 @@ class Store private constructor(context: Context) {
 
     fun isAdultFilterActive(): Boolean = adultFilterEnabled && !isAdultUnlockedToday()
 
+    /** Until when (wall clock) the uninstall/switch-off protection is lifted. */
+    var protectionUnlockedUntil: Long
+        get() = prefs.getLong(KEY_PROTECTION_UNTIL, 0L)
+        set(value) = prefs.edit().putLong(KEY_PROTECTION_UNTIL, value).apply()
+
+    /** Short window in which the device admin activation screen may be shown. */
+    var adminSetupUntil: Long
+        get() = prefs.getLong(KEY_ADMIN_SETUP_UNTIL, 0L)
+        set(value) = prefs.edit().putLong(KEY_ADMIN_SETUP_UNTIL, value).apply()
+
+    fun isProtectionActive(): Boolean {
+        val now = System.currentTimeMillis()
+        return now > protectionUnlockedUntil && now > adminSetupUntil
+    }
+
     fun usageMs(app: TargetApp): Long {
         ensureToday()
         return prefs.getLong("usage_${app.name}", 0L)
@@ -104,6 +119,8 @@ class Store private constructor(context: Context) {
         private const val KEY_DAY = "day"
         private const val KEY_ADULT = "adult_filter"
         private const val KEY_ADULT_UNLOCK = "unlock_adult_filter"
+        private const val KEY_PROTECTION_UNTIL = "protection_until"
+        private const val KEY_ADMIN_SETUP_UNTIL = "admin_setup_until"
 
         @Volatile
         private var instance: Store? = null

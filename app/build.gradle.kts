@@ -11,8 +11,23 @@ android {
         applicationId = "com.yuxizhang.doomscroll"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
+    }
+
+    // Release builds are signed with your own fixed key when CI provides it (GitHub secrets
+    // SIGNING_KEYSTORE_BASE64 and SIGNING_PASSWORD), so updates install over the old version.
+    // Without it they fall back to the debug key.
+    val keystore = System.getenv("SIGNING_KEYSTORE_FILE")?.let { file(it) }?.takeIf { it.exists() }
+    signingConfigs {
+        if (keystore != null) {
+            create("own") {
+                storeFile = keystore
+                storePassword = System.getenv("SIGNING_PASSWORD")
+                keyAlias = "doomscroll"
+                keyPassword = System.getenv("SIGNING_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -20,8 +35,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // Signed with the debug key so the release APK installs directly on your own phone.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("own") ?: signingConfigs.getByName("debug")
         }
     }
 
