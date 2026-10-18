@@ -1,6 +1,7 @@
 package com.yuxizhang.doomscroll
 
 import android.app.Activity
+import android.app.TimePickerDialog
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
@@ -14,7 +15,10 @@ import android.text.format.DateFormat
 import android.view.Gravity
 import android.view.View
 import android.widget.Toast
+import java.time.LocalDate
+import java.time.format.TextStyle
 import java.util.Date
+import java.util.Locale
 
 /** Settings, today's usage, and the ways to lift a block for today. */
 class MainActivity : Activity() {
@@ -27,6 +31,9 @@ class MainActivity : Activity() {
     private var globalLimit = 0
     private val enabled = mutableMapOf<TargetApp, Boolean>()
     private val limits = mutableMapOf<TargetApp, Int>()
+    private var quietEnabled = false
+    private var quietStart = 0
+    private var quietEnd = 0
 
     /** Settings waiting for the unlock sentence because they loosen a limit. */
     private var pending: PendingSettings? = null
@@ -61,6 +68,9 @@ class MainActivity : Activity() {
             enabled[app] = store.isEnabled(app)
             limits[app] = store.limitMinutes(app)
         }
+        quietEnabled = store.quietEnabled
+        quietStart = store.quietStart
+        quietEnd = store.quietEnd
     }
 
     private fun render() {
@@ -70,7 +80,9 @@ class MainActivity : Activity() {
                 ui.subtitle("Weniger scrollen, mehr leben."),
                 statusCard(),
                 todayCard(),
+                weekCard(),
                 limitsCard(),
+                quietCard(),
                 adultCard(),
                 protectionCard(),
                 unlockCard(),
@@ -82,7 +94,7 @@ class MainActivity : Activity() {
         if (isServiceEnabled()) {
             return ui.card(
                 ui.row(ui.cardTitle("Blocker ist aktiv"), ui.pill("AN", ui.successSoft, ui.success)),
-                ui.body("Läuft sparsam im Hintergrund und wird nur in Instagram, YouTube, TikTok, Browsern und den Einstellungen wach."),
+                ui.body("Läuft sparsam im Hintergrund und wird nur in Instagram, YouTube, TikTok, Snapchat, Facebook, Browsern und den Einstellungen wach."),
                 appSettingsButton(),
             )
         }
@@ -100,6 +112,10 @@ class MainActivity : Activity() {
 
     private fun todayCard(): View {
         val card = ui.card(ui.cardTitle("Heute"))
+        if (store.isQuietNow() && !store.isUnlockedToday(null)) {
+            card.addView(ui.pill("Ruhezeit bis ${clock(store.quietEnd)} · alles gesperrt", ui.accentSoft, ui.accent))
+            card.addView(ui.spacer(8f))
+        }
         if (!store.perAppMode) {
             val total = minutes(store.totalUsageMs())
             card.addView(ui.row(ui.body("Zusammen", ui.textColor), ui.body("$total / ${store.globalLimitMinutes} min", ui.textColor)))
@@ -119,6 +135,43 @@ class MainActivity : Activity() {
             card.addView(ui.progress(if (unlocked) 0f else fraction(used, limit)))
         }
         return card
+    }
+
+    /** Short-video minutes for the last seven days, today on the right. */
+    private fun weekCard(): View {
+        val today = LocalDate.now()
+        val days = (6L downTo 0L).map { today.minusDays(it) }
+        val values = days.map { minutes(store.dayTotalMs(it)).toInt() }
+        val labels = days.map { it.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.GERMAN).removeSuffix(".") }
+        val total = values.sum()
+        return ui.card(
+            ui.cardTitle("Letzte 7 Tage"),
+            ui.body("Zusammen $total min · Schnitt ${total / days.size} min pro Tag"),
+            ui.barChart(labels, values, highlight = days.lastIndex),
+        )
+    }
+
+    private fun quietCard(): View {
+        fun timeButton(prefix: String, minute: () -> Int, set: (Int) -> Unit): View {
+            lateinit var button: android.widget.TextView
+            button = ui.secondaryButton("$prefix ${clock(minute())}") {
+                TimePickerDialog(this, { _, h, m ->
+                    set(h * 60 + m)
+                    button.text = "$prefix ${clock(minute())}"
+                }, minute() / 60, minute() % 60, true).show()
+            }
+            return button
+        }
+        val toggle = ui.switch(quietEnabled).apply {
+            setOnCheckedChangeListener { _, on -> quietEnabled = on }
+        }
+        return ui.card(
+            ui.row(ui.cardTitle("Ruhezeiten"), toggle),
+            ui.body("In dieser Zeit sind alle Kurzvideos gesperrt, egal wie viel vom Limit übrig ist. Kürzer machen oder ausschalten braucht den langen Satz."),
+            timeButton("Von", { quietStart }) { quietStart = it },
+            timeButton("Bis", { quietEnd }) { quietEnd = it },
+            ui.primaryButton("Speichern") { save() },
+        )
     }
 
     private fun limitsCard(): View {
@@ -292,7 +345,7 @@ class MainActivity : Activity() {
     }
 
     private fun save() {
-        val next = PendingSettings(perAppMode, globalLimit, enabled.toMap(), limits.toMap())
+        val next = PendingSettings(perAppMode, globalLimit, enabled.toMap(), limits.toMap(), quietEnabled, quietStart, quietEnd)
         if (loosens(next)) {
             pending = next
             @Suppress("DEPRECATION")
@@ -310,7 +363,17 @@ class MainActivity : Activity() {
             TargetApp.entries.any { app ->
                 (store.isEnabled(app) && !next.enabled.getValue(app)) ||
                     next.limits.getValue(app) > store.limitMinutes(app)
-            }
+            } ||
+            quietShrinks(next)
+
+    /** True when some minute that was quiet before would no longer be quiet. */
+    private fun quietShrinks(next: PendingSettings): Boolean {
+        if (!store.quietEnabled) return false
+        return (0 until 24 * 60).any { m ->
+            Store.inWindow(m, store.quietStart, store.quietEnd) &&
+                !(next.quietEnabled && Store.inWindow(m, next.quietStart, next.quietEnd))
+        }
+    }
 
     private fun apply(settings: PendingSettings) {
         store.perAppMode = settings.perAppMode
@@ -319,6 +382,9 @@ class MainActivity : Activity() {
             store.setEnabled(app, settings.enabled.getValue(app))
             store.setLimitMinutes(app, settings.limits.getValue(app))
         }
+        store.quietEnabled = settings.quietEnabled
+        store.quietStart = settings.quietStart
+        store.quietEnd = settings.quietEnd
         Toast.makeText(this, "Gespeichert", Toast.LENGTH_SHORT).show()
     }
 
@@ -330,6 +396,8 @@ class MainActivity : Activity() {
 
     private fun minutes(ms: Long): Long = ms / Store.MINUTE
 
+    private fun clock(minuteOfDay: Int) = String.format(Locale.GERMAN, "%02d:%02d", minuteOfDay / 60, minuteOfDay % 60)
+
     private fun fraction(used: Long, limitMinutes: Int): Float =
         if (limitMinutes <= 0) 1f else used.toFloat() / limitMinutes
 
@@ -338,6 +406,9 @@ class MainActivity : Activity() {
         val globalLimit: Int,
         val enabled: Map<TargetApp, Boolean>,
         val limits: Map<TargetApp, Int>,
+        val quietEnabled: Boolean,
+        val quietStart: Int,
+        val quietEnd: Int,
     )
 
     companion object {

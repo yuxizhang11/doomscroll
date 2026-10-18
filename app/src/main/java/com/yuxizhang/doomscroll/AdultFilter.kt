@@ -12,8 +12,11 @@ object AdultFilter {
 
     /** Browser package → view ids of its address bar. */
     val BROWSERS: Map<String, List<String>> = mapOf(
+        // Incognito and Samsung's secret mode run in the same package and are covered too.
         "com.android.chrome" to listOf("com.android.chrome:id/url_bar"),
         "com.chrome.beta" to listOf("com.chrome.beta:id/url_bar"),
+        "com.chrome.dev" to listOf("com.chrome.dev:id/url_bar"),
+        "com.chrome.canary" to listOf("com.chrome.canary:id/url_bar"),
         "org.mozilla.firefox" to listOf(
             "org.mozilla.firefox:id/mozac_browser_toolbar_url_view",
             "org.mozilla.firefox:id/url_bar_title",
@@ -25,9 +28,15 @@ object AdultFilter {
             "com.sec.android.app.sbrowser:id/location_bar_edit_text",
             "com.sec.android.app.sbrowser:id/custom_tab_toolbar_url_bar_text",
         ),
+        "com.sec.android.app.sbrowser.beta" to listOf("com.sec.android.app.sbrowser.beta:id/location_bar_edit_text"),
         "com.brave.browser" to listOf("com.brave.browser:id/url_bar"),
+        "com.brave.browser_beta" to listOf("com.brave.browser_beta:id/url_bar"),
+        "com.ecosia.android" to listOf("com.ecosia.android:id/url_bar"),
+        "org.torproject.torbrowser" to listOf("org.torproject.torbrowser:id/mozac_browser_toolbar_url_view"),
         "com.microsoft.emmx" to listOf("com.microsoft.emmx:id/url_bar"),
         "com.opera.browser" to listOf("com.opera.browser:id/url_field"),
+        "com.opera.browser.beta" to listOf("com.opera.browser.beta:id/url_field"),
+        "com.opera.gx" to listOf("com.opera.gx:id/url_field"),
         "com.opera.mini.native" to listOf("com.opera.mini.native:id/url_field"),
         "com.duckduckgo.mobile.android" to listOf("com.duckduckgo.mobile.android:id/omnibarTextInput"),
         "com.vivaldi.browser" to listOf("com.vivaldi.browser:id/url_bar"),

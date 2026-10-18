@@ -3,6 +3,7 @@ package com.yuxizhang.doomscroll
 import android.content.Context
 import android.content.SharedPreferences
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 /**
  * All settings and today's counters, kept in one small SharedPreferences file.
@@ -31,6 +32,50 @@ class Store private constructor(context: Context) {
 
     fun setEnabled(app: TargetApp, enabled: Boolean) =
         prefs.edit().putBoolean("enabled_${app.name}", enabled).apply()
+
+    /** Quiet hours: all short videos are blocked between start and end (minutes of the day). */
+    var quietEnabled: Boolean
+        get() = prefs.getBoolean(KEY_QUIET, false)
+        set(value) = prefs.edit().putBoolean(KEY_QUIET, value).apply()
+
+    var quietStart: Int
+        get() = prefs.getInt(KEY_QUIET_START, 22 * 60)
+        set(value) = prefs.edit().putInt(KEY_QUIET_START, value).apply()
+
+    var quietEnd: Int
+        get() = prefs.getInt(KEY_QUIET_END, 7 * 60)
+        set(value) = prefs.edit().putInt(KEY_QUIET_END, value).apply()
+
+    fun isQuietNow(): Boolean = quietEnabled && inWindow(minuteOfDay(), quietStart, quietEnd)
+
+    /** Milliseconds until the next quiet hours begin, or null when they are off. */
+    fun msUntilQuietStart(): Long? {
+        if (!quietEnabled) return null
+        val now = LocalDateTime.now()
+        val nowMs = (now.hour * 60 + now.minute) * MINUTE + now.second * 1000L
+        val startMs = quietStart * MINUTE
+        return (startMs - nowMs).mod(DAY_MS).let { if (it == 0L) DAY_MS else it }
+    }
+
+    /** The 5-minute warning is shown once a day per limit. */
+    fun wasWarnedToday(app: TargetApp): Boolean {
+        ensureToday()
+        return prefs.getBoolean(warnKey(app), false)
+    }
+
+    fun markWarned(app: TargetApp) {
+        ensureToday()
+        prefs.edit().putBoolean(warnKey(app), true).apply()
+    }
+
+    private fun warnKey(app: TargetApp) = "warn_${if (perAppMode) app.name else "ALL"}"
+
+    /** Short-video time on [day] across all apps; past days come from the saved history. */
+    fun dayTotalMs(day: LocalDate): Long {
+        ensureToday()
+        if (day == LocalDate.now()) return TargetApp.entries.sumOf(::usageMs)
+        return prefs.getLong("$HISTORY$day", 0L)
+    }
 
     /** Porn blocker for browsers; on unless switched off with the 20-character code. */
     var adultFilterEnabled: Boolean
@@ -93,27 +138,59 @@ class Store private constructor(context: Context) {
      */
     fun remainingMs(app: TargetApp): Long? {
         if (!isEnabled(app) || isUnlockedToday(null) || isUnlockedToday(app)) return null
-        return if (perAppMode) {
+        if (isQuietNow()) return 0
+        val left = if (perAppMode) {
             limitMinutes(app) * MINUTE - usageMs(app)
         } else {
             globalLimitMinutes * MINUTE - totalUsageMs()
         }
+        // The timer also has to fire when quiet hours begin.
+        return msUntilQuietStart()?.let { minOf(left, it) } ?: left
     }
 
     private fun unlockKey(app: TargetApp?) = "unlock_${app?.name ?: "ALL"}"
 
+    /**
+     * On the first read of a new day, yesterday's total moves into the history (kept for
+     * [HISTORY_DAYS] days) and the day's counters, unlocks and warnings are wiped.
+     */
     private fun ensureToday() {
-        val today = LocalDate.now().toString()
-        if (prefs.getString(KEY_DAY, null) == today) return
+        val today = LocalDate.now()
+        val last = prefs.getString(KEY_DAY, null)
+        if (last == today.toString()) return
         val editor = prefs.edit()
-        prefs.all.keys
-            .filter { it.startsWith("usage_") || it.startsWith("unlock_") }
+        val all = prefs.all
+        if (last != null) {
+            val total = all.filterKeys { it.startsWith("usage_") }.values.sumOf { (it as? Long) ?: 0L }
+            editor.putLong("$HISTORY$last", total)
+        }
+        val oldest = today.minusDays(HISTORY_DAYS)
+        all.keys
+            .filter {
+                it.startsWith("usage_") || it.startsWith("unlock_") || it.startsWith("warn_") ||
+                    (it.startsWith(HISTORY) && runCatching { LocalDate.parse(it.removePrefix(HISTORY)) < oldest }.getOrDefault(true))
+            }
             .forEach(editor::remove)
-        editor.putString(KEY_DAY, today).apply()
+        editor.putString(KEY_DAY, today.toString()).apply()
     }
+
+    private fun minuteOfDay(): Int = LocalDateTime.now().let { it.hour * 60 + it.minute }
 
     companion object {
         const val MINUTE = 60_000L
+        private const val DAY_MS = 24 * 60 * MINUTE
+        private const val HISTORY = "hist_"
+        private const val HISTORY_DAYS = 30L
+        private const val KEY_QUIET = "quiet"
+        private const val KEY_QUIET_START = "quiet_start"
+        private const val KEY_QUIET_END = "quiet_end"
+
+        /** Whether [minute] lies in the window from [start] to [end], which may run past midnight. */
+        fun inWindow(minute: Int, start: Int, end: Int): Boolean = when {
+            start == end -> false
+            start < end -> minute in start until end
+            else -> minute >= start || minute < end
+        }
         private const val KEY_PER_APP = "per_app_mode"
         private const val KEY_GLOBAL_LIMIT = "global_limit"
         private const val KEY_DAY = "day"

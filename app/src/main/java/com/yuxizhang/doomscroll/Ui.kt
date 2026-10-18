@@ -215,6 +215,15 @@ class Ui(private val context: Context) {
         }
     }
 
+    /** Bars with a label underneath and the value on top, e.g. minutes per weekday. */
+    fun barChart(labels: List<String>, values: List<Int>, highlight: Int) =
+        BarChartView(context, labels, values, highlight, accent, accentSoft, muted, textColor).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150f)).apply {
+                topMargin = dp(8f)
+                bottomMargin = dp(8f)
+            }
+        }
+
     fun rounded(color: Int, radiusDp: Float) = GradientDrawable().apply {
         setColor(color)
         cornerRadius = dp(radiusDp).toFloat()
@@ -245,5 +254,47 @@ class ProgressBarView(
         rect.right = (width * f).coerceAtLeast(height.toFloat())
         paint.color = if (f >= 1f) 0xFFE5484D.toInt() else color
         canvas.drawRoundRect(rect, r, r, paint)
+    }
+}
+
+/** Simple bar chart; the bar at [highlight] (today) is drawn in the strong colour. */
+class BarChartView(
+    context: Context,
+    private val labels: List<String>,
+    private val values: List<Int>,
+    private val highlight: Int,
+    private val strong: Int,
+    private val soft: Int,
+    private val labelColor: Int,
+    private val valueColor: Int,
+) : View(context) {
+
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, resources.displayMetrics)
+    }
+    private val rect = RectF()
+
+    override fun onDraw(canvas: Canvas) {
+        if (values.isEmpty()) return
+        val line = text.textSize * 1.4f
+        val top = line
+        val bottom = height - line
+        val slot = width.toFloat() / values.size
+        val barWidth = slot * 0.55f
+        val max = values.max().coerceAtLeast(1)
+        val radius = barWidth / 4f
+        values.forEachIndexed { i, value ->
+            val centre = slot * i + slot / 2f
+            val barHeight = ((bottom - top) * value / max).coerceAtLeast(radius * 2f)
+            rect.set(centre - barWidth / 2f, bottom - barHeight, centre + barWidth / 2f, bottom)
+            paint.color = if (i == highlight) strong else soft
+            canvas.drawRoundRect(rect, radius, radius, paint)
+            text.color = valueColor
+            canvas.drawText(value.toString(), centre, rect.top - line * 0.3f, text)
+            text.color = labelColor
+            canvas.drawText(labels[i], centre, height - line * 0.25f, text)
+        }
     }
 }

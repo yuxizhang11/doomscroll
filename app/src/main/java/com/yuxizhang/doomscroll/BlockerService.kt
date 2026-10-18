@@ -21,8 +21,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.TextView
 
 /**
- * Watches Instagram, YouTube and TikTok through the accessibility API, the address bar
- * of common browsers for pornographic sites, and the system screens that could switch it off.
+ * Watches the short-video apps through the accessibility API, the address bar of common
+ * browsers for pornographic sites and short videos, and the system screens that could switch it off.
  *
  * Efficiency: the system only wakes this service for events from the watched apps
  * (see accessibility_config.xml). While a short video screen is open it re-checks every
@@ -59,6 +59,16 @@ class BlockerService : AccessibilityService() {
         val app = activeApp ?: return@Runnable
         endSession()
         if (detectShortForm() == app) block(app)
+    }
+
+    private val warn = Runnable {
+        val app = activeApp ?: return@Runnable
+        flushUsage()
+        val left = store.remainingMs(app) ?: return@Runnable
+        if (left <= 0) return@Runnable
+        store.markWarned(app)
+        val minutes = (left + Store.MINUTE - 1) / Store.MINUTE
+        showOverlay(if (minutes == 1L) "Noch 1 Minute ⏳" else "Noch $minutes Minuten ⏳")
     }
 
     private val screenOff = object : BroadcastReceiver() {
@@ -115,9 +125,16 @@ class BlockerService : AccessibilityService() {
             event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
             event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
 
+    /** Porn first; otherwise the browser may be showing short videos (youtube.com/shorts and so on). */
     private fun onBrowserMaybeChanged() {
-        if (!store.isAdultFilterActive()) return
         val root = rootInActiveWindow ?: return
+        if (store.isAdultFilterActive() && blockPorn(root)) return
+        if (!AdultFilter.isBrowser(root.packageName)) return
+        onScreenMaybeChanged(AdultFilter.currentAddress(root)?.let(TargetApp::fromAddress))
+    }
+
+    /** Returns true when it stepped in. */
+    private fun blockPorn(root: AccessibilityNodeInfo): Boolean {
         // Typing a porn word or site is stopped right away: the field is emptied and you
         // are sent to the home screen before anything loads.
         val field = AdultFilter.typingField(root)
@@ -128,10 +145,10 @@ class BlockerService : AccessibilityService() {
             field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, empty)
             showOverlay("Diese Suche ist gesperrt 🔒")
             performGlobalAction(GLOBAL_ACTION_HOME)
-            return
+            return true
         }
-        val address = AdultFilter.currentAddress(root) ?: return
-        if (!AdultFilter.isPorn(address)) return
+        val address = AdultFilter.currentAddress(root) ?: return false
+        if (!AdultFilter.isPorn(address)) return false
         val pkg = root.packageName
         showOverlay("Diese Seite ist gesperrt 🔒")
         performGlobalAction(GLOBAL_ACTION_BACK)
@@ -141,6 +158,7 @@ class BlockerService : AccessibilityService() {
                 AdultFilter.currentAddress(now)?.let(AdultFilter::isPorn) == true
             if (still) performGlobalAction(GLOBAL_ACTION_HOME)
         }, RETRY_MS)
+        return true
     }
 
     private fun onSettingsMaybeChanged() {
@@ -157,8 +175,7 @@ class BlockerService : AccessibilityService() {
         }, RETRY_MS)
     }
 
-    private fun onScreenMaybeChanged() {
-        val app = detectShortForm()
+    private fun onScreenMaybeChanged(app: TargetApp? = detectShortForm()) {
         when {
             app == null -> endSession()
             app != activeApp -> startSession(app)
@@ -168,8 +185,11 @@ class BlockerService : AccessibilityService() {
 
     private fun detectShortForm(): TargetApp? {
         val root = rootInActiveWindow ?: return null
-        val app = TargetApp.fromPackage(root.packageName) ?: return null
-        return if (app.isShortFormOnScreen(root)) app else null
+        TargetApp.fromPackage(root.packageName)?.let { app ->
+            return if (app.isShortFormOnScreen(root)) app else null
+        }
+        if (!AdultFilter.isBrowser(root.packageName)) return null
+        return AdultFilter.currentAddress(root)?.let(TargetApp::fromAddress)
     }
 
     private fun startSession(app: TargetApp) {
@@ -182,7 +202,10 @@ class BlockerService : AccessibilityService() {
         activeApp = app
         sessionStart = SystemClock.elapsedRealtime()
         handler.postDelayed(poll, POLL_MS)
-        if (remaining != null) handler.postDelayed(limitReached, remaining)
+        if (remaining != null) {
+            handler.postDelayed(limitReached, remaining)
+            if (!store.wasWarnedToday(app)) handler.postDelayed(warn, (remaining - WARN_BEFORE_MS).coerceAtLeast(0))
+        }
     }
 
     private fun endSession() {
@@ -190,6 +213,7 @@ class BlockerService : AccessibilityService() {
         activeApp = null
         handler.removeCallbacks(poll)
         handler.removeCallbacks(limitReached)
+        handler.removeCallbacks(warn)
     }
 
     /** Writes the time since the last flush, so nothing is lost if the process dies. */
@@ -263,6 +287,7 @@ class BlockerService : AccessibilityService() {
         private const val DEBOUNCE_MS = 250L
         private const val BROWSER_CHECK_MS = 500L
         private const val POLL_MS = 5_000L
+        private const val WARN_BEFORE_MS = 5 * Store.MINUTE
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L
         private const val OVERLAY_COOLDOWN_MS = 4_000L
