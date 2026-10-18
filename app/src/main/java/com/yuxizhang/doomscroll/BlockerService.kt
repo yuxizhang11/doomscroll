@@ -45,6 +45,7 @@ class BlockerService : AccessibilityService() {
         browserCheckPending = false
         onBrowserMaybeChanged()
     }
+    private val checkTypingPause = Runnable { onTypingPaused() }
     private val checkGuard = Runnable { onSettingsMaybeChanged() }
     private val hideOverlay = Runnable { removeOverlay() }
 
@@ -118,20 +119,22 @@ class BlockerService : AccessibilityService() {
     private fun onBrowserMaybeChanged() {
         if (!store.isAdultFilterActive()) return
         val root = rootInActiveWindow ?: return
-        // Typing a porn word or site is stopped right away: the field is emptied before
-        // the page can load, and you can keep typing something else.
+        // A porn site being typed is stopped right away. A porn word only once you pause, so a
+        // search about the topic ("wie Pornos die Gesellschaft ...") can be typed to the end.
         val field = AdultFilter.typingField(root)
         val typed = field?.text?.toString()
-        if (field != null && typed != null && AdultFilter.isPorn(typed)) {
-            val empty = Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+        handler.removeCallbacks(checkTypingPause)
+        if (field != null && typed != null) {
+            if (AdultFilter.isPornSite(typed)) {
+                clearTyping(field)
+                return
             }
-            field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, empty)
-            showOverlay("Diese Suche ist gesperrt 🔒")
-            return
+            if (AdultFilter.isPorn(typed)) handler.postDelayed(checkTypingPause, TYPING_PAUSE_MS)
         }
+        // While typing, half-typed words in the bar must not count yet; sites still do.
         val address = AdultFilter.currentAddress(root) ?: return
-        if (!AdultFilter.isPorn(address)) return
+        val blocked = if (field != null) AdultFilter.isPornSite(address) else AdultFilter.isPorn(address)
+        if (!blocked) return
         val pkg = root.packageName
         showOverlay("Diese Seite ist gesperrt 🔒")
         performGlobalAction(GLOBAL_ACTION_BACK)
@@ -141,6 +144,20 @@ class BlockerService : AccessibilityService() {
                 AdultFilter.currentAddress(now)?.let(AdultFilter::isPorn) == true
             if (still) performGlobalAction(GLOBAL_ACTION_HOME)
         }, RETRY_MS)
+    }
+
+    private fun onTypingPaused() {
+        if (!store.isAdultFilterActive()) return
+        val field = rootInActiveWindow?.let(AdultFilter::typingField) ?: return
+        if (AdultFilter.isPorn(field.text?.toString() ?: return)) clearTyping(field)
+    }
+
+    private fun clearTyping(field: AccessibilityNodeInfo) {
+        val empty = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+        }
+        field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, empty)
+        showOverlay("Diese Suche ist gesperrt 🔒")
     }
 
     private fun onSettingsMaybeChanged() {
@@ -261,7 +278,8 @@ class BlockerService : AccessibilityService() {
 
     companion object {
         private const val DEBOUNCE_MS = 250L
-        private const val BROWSER_CHECK_MS = 200L
+        private const val BROWSER_CHECK_MS = 500L
+        private const val TYPING_PAUSE_MS = 1_500L
         private const val POLL_MS = 5_000L
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L
