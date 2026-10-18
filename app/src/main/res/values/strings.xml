@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">Doomscroll Blocker</string>
     <string name="service_label">Doomscroll Blocker</string>
-    <string name="service_description">Erkennt, wann du Instagram Reels, YouTube Shorts oder TikTok schaust, zählt die Zeit und sperrt den Bereich, wenn dein Tageslimit erreicht ist. Es werden keine Inhalte gespeichert oder gesendet.</string>
+    <string name="service_description">Erkennt, wann du Instagram Reels, YouTube Shorts oder TikTok schaust, zählt die Zeit und sperrt den Bereich, wenn dein Tageslimit erreicht ist. Im Browser liest sie nur die Adresszeile, um pornografische Seiten zu sperren. Es werden keine Inhalte gespeichert oder gesendet.</string>
 </resources>

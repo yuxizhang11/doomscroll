@@ -5,22 +5,19 @@ import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
 import android.view.View
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.EditText
-import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.Toast
 
-/** Settings, today's usage, and the way to lift the block for today. */
+/** Settings, today's usage, and the ways to lift a block for today. */
 class MainActivity : Activity() {
 
     private lateinit var store: Store
+    private lateinit var ui: Ui
 
-    private lateinit var perAppRadio: RadioButton
-    private lateinit var globalInput: EditText
-    private val enabledBoxes = mutableMapOf<TargetApp, CheckBox>()
-    private val limitInputs = mutableMapOf<TargetApp, EditText>()
+    // Draft of the limit settings, applied on "Speichern".
+    private var perAppMode = false
+    private var globalLimit = 0
+    private val enabled = mutableMapOf<TargetApp, Boolean>()
+    private val limits = mutableMapOf<TargetApp, Int>()
 
     /** Settings waiting for the unlock sentence because they loosen a limit. */
     private var pending: PendingSettings? = null
@@ -28,6 +25,9 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         store = Store.get(this)
+        ui = Ui(this)
+        ui.styleWindow(this)
+        loadDraft()
         render()
     }
 
@@ -35,85 +35,185 @@ class MainActivity : Activity() {
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_SETTINGS && resultCode == RESULT_OK) {
-            pending?.let { apply(it) }
+        if (resultCode == RESULT_OK) {
+            when (requestCode) {
+                REQUEST_SETTINGS -> pending?.let { apply(it) }
+                REQUEST_ADULT_OFF -> store.adultFilterEnabled = false
+            }
         }
         pending = null
     }
 
-    private fun render() {
-        val views = mutableListOf<View>()
-        views += Ui.title(this, "Doomscroll Blocker")
-        views += serviceStatus()
-
-        views += Ui.section(this, "Tageslimit")
-        val group = RadioGroup(this)
-        val globalRadio = RadioButton(this).apply { text = "Ein Limit für alle Apps zusammen"; id = View.generateViewId() }
-        perAppRadio = RadioButton(this).apply { text = "Ein Limit pro App"; id = View.generateViewId() }
-        group.addView(globalRadio)
-        group.addView(perAppRadio)
-        group.check(if (store.perAppMode) perAppRadio.id else globalRadio.id)
-        views += group
-
-        globalInput = Ui.minutesInput(this, store.globalLimitMinutes)
-        views += Ui.row(this, Ui.text(this, "Gemeinsames Limit (Minuten):  "), globalInput)
-        views += Ui.text(this, "Heute zusammen: ${minutes(store.totalUsageMs())} von ${store.globalLimitMinutes} min")
-
-        views += Ui.section(this, "Apps")
+    private fun loadDraft() {
+        perAppMode = store.perAppMode
+        globalLimit = store.globalLimitMinutes
         for (app in TargetApp.entries) {
-            val box = CheckBox(this).apply { text = app.label; isChecked = store.isEnabled(app) }
-            val input = Ui.minutesInput(this, store.limitMinutes(app))
-            enabledBoxes[app] = box
-            limitInputs[app] = input
-            views += box
-            views += Ui.row(this, Ui.text(this, "Limit pro App (Minuten):  "), input)
-            views += Ui.text(this, "Heute: ${minutes(store.usageMs(app))} min" + if (store.isUnlockedToday(app)) " · heute entsperrt" else "")
+            enabled[app] = store.isEnabled(app)
+            limits[app] = store.limitMinutes(app)
         }
-        views += Ui.text(this, "TikTok besteht fast nur aus dem Video-Feed, deshalb zählt dort die ganze App und die Sperre schickt dich zum Startbildschirm.")
-
-        views += Button(this).apply {
-            text = "Speichern"
-            setOnClickListener { save() }
-        }
-
-        views += Ui.section(this, "Sperre für heute aufheben")
-        views += Ui.text(this, "Dafür musst du einen langen Satz abtippen. Morgen gilt die Sperre wieder.")
-        if (store.isUnlockedToday(null)) {
-            views += Ui.text(this, "Heute für alle Apps aufgehoben.")
-        } else {
-            views += unlockButton("Für alle Apps", UnlockActivity.SCOPE_ALL)
-            for (app in TargetApp.entries) {
-                if (!store.isUnlockedToday(app)) views += unlockButton("Nur für ${app.label}", app.name)
-            }
-        }
-
-        setContentView(Ui.page(this, *views.toTypedArray()))
     }
 
-    private fun serviceStatus(): View {
-        if (isServiceEnabled()) return Ui.text(this, "✅ Der Blocker läuft im Hintergrund.")
-        return Ui.column(
-            this,
-            Ui.text(this, "⚠️ Der Blocker ist noch aus. Schalte \"Doomscroll Blocker\" in den Bedienungshilfen ein."),
-            Button(this).apply {
-                text = "Bedienungshilfen öffnen"
-                setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-            },
+    private fun render() {
+        setContentView(
+            ui.page(
+                ui.title("Doomscroll Blocker"),
+                ui.subtitle("Weniger scrollen, mehr leben."),
+                statusCard(),
+                todayCard(),
+                limitsCard(),
+                adultCard(),
+                unlockCard(),
+            )
         )
     }
 
-    private fun unlockButton(label: String, scope: String) = Button(this).apply {
-        text = label
-        setOnClickListener { startActivity(UnlockActivity.intent(this@MainActivity, scope)) }
+    private fun statusCard(): View {
+        if (isServiceEnabled()) {
+            return ui.card(
+                ui.row(ui.cardTitle("Blocker ist aktiv"), ui.pill("AN", ui.successSoft, ui.success)),
+                ui.body("Läuft sparsam im Hintergrund und wird nur in Instagram, YouTube, TikTok und Browsern wach."),
+            )
+        }
+        return ui.card(
+            ui.row(ui.cardTitle("Blocker ist aus"), ui.pill("AUS", ui.surface, ui.danger)),
+            ui.body("Schalte „Doomscroll Blocker“ in den Bedienungshilfen ein, damit gezählt und gesperrt wird.", ui.textColor),
+            ui.primaryButton("Bedienungshilfen öffnen") {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            },
+            color = ui.dangerSoft,
+        )
+    }
+
+    private fun todayCard(): View {
+        val card = ui.card(ui.cardTitle("Heute"))
+        if (!store.perAppMode) {
+            val total = minutes(store.totalUsageMs())
+            card.addView(ui.row(ui.body("Zusammen", ui.textColor), ui.body("$total / ${store.globalLimitMinutes} min", ui.textColor)))
+            card.addView(ui.progress(fraction(total, store.globalLimitMinutes)))
+        }
+        for (app in TargetApp.entries) {
+            if (!store.isEnabled(app)) continue
+            val used = minutes(store.usageMs(app))
+            val unlocked = store.isUnlockedToday(app) || store.isUnlockedToday(null)
+            val right = when {
+                unlocked -> "$used min · frei"
+                store.perAppMode -> "$used / ${store.limitMinutes(app)} min"
+                else -> "$used min"
+            }
+            card.addView(ui.row(ui.body(app.label, ui.textColor), ui.body(right)))
+            val limit = if (store.perAppMode) store.limitMinutes(app) else store.globalLimitMinutes
+            card.addView(ui.progress(if (unlocked) 0f else fraction(used, limit)))
+        }
+        return card
+    }
+
+    private fun limitsCard(): View {
+        val globalRow = stepper("Limit für alle zusammen", globalLimit) { globalLimit = it }
+        val appSteppers = TargetApp.entries.associateWith { app ->
+            stepper("Tageslimit", limits.getValue(app)) { limits[app] = it }
+        }
+        fun showMode() {
+            globalRow.visibility = if (perAppMode) View.GONE else View.VISIBLE
+            appSteppers.values.forEach { it.visibility = if (perAppMode) View.VISIBLE else View.GONE }
+        }
+
+        val card = ui.card(
+            ui.cardTitle("Limits"),
+            ui.body("Lockern (mehr Zeit, App aus, Modus wechseln) braucht den langen Satz."),
+            ui.spacer(8f),
+            ui.segmented(listOf("Gemeinsam", "Pro App"), if (perAppMode) 1 else 0) {
+                perAppMode = it == 1
+                showMode()
+            },
+            ui.spacer(8f),
+            globalRow,
+        )
+        for (app in TargetApp.entries) {
+            val toggle = ui.switch(enabled.getValue(app)).apply {
+                setOnCheckedChangeListener { _, on -> enabled[app] = on }
+            }
+            card.addView(ui.spacer(10f))
+            card.addView(ui.row(ui.label(app.label, 16f, ui.textColor, bold = true), toggle))
+            card.addView(appSteppers.getValue(app))
+        }
+        card.addView(ui.body("TikTok zählt komplett, weil es fast nur aus dem Video-Feed besteht."))
+        card.addView(ui.primaryButton("Speichern") { save() })
+        showMode()
+        return card
+    }
+
+    /** "Label   −  15 min  +" in 5-minute steps. */
+    private fun stepper(label: String, start: Int, onChange: (Int) -> Unit): View {
+        var value = start
+        val shown = ui.label("$value min", 16f, ui.textColor, bold = true).apply {
+            gravity = android.view.Gravity.CENTER
+            minWidth = ui.dp(76f)
+        }
+        fun change(delta: Int) {
+            value = (value + delta).coerceIn(0, MAX_MINUTES)
+            shown.text = "$value min"
+            onChange(value)
+        }
+        return ui.row(
+            ui.body(label),
+            ui.roundButton("−") { change(-STEP_MINUTES) },
+            shown,
+            ui.roundButton("+") { change(STEP_MINUTES) },
+        ).apply { setPadding(0, ui.dp(6f), 0, ui.dp(6f)) }
+    }
+
+    private fun adultCard(): View {
+        val on = store.adultFilterEnabled
+        val unlocked = store.isAdultUnlockedToday()
+        val toggle = ui.switch(on).apply {
+            setOnCheckedChangeListener { view, checked ->
+                if (checked) {
+                    store.adultFilterEnabled = true
+                } else {
+                    // Turning it off needs the code; the switch only flips once that succeeds.
+                    view.isChecked = true
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(UnlockActivity.intent(this@MainActivity, UnlockActivity.SCOPE_ADULT_OFF), REQUEST_ADULT_OFF)
+                }
+            }
+        }
+        val card = ui.card(
+            ui.row(ui.cardTitle("Porno-Blocker"), toggle),
+            ui.body("Sperrt pornografische Seiten in Chrome, Firefox, Samsung Internet, Brave, Edge, Opera und weiteren Browsern. Alle anderen Seiten bleiben offen."),
+        )
+        when {
+            !on -> Unit
+            unlocked -> card.addView(ui.pill("Heute aufgehoben", ui.accentSoft, ui.accent))
+            else -> card.addView(ui.secondaryButton("Heute aufheben (20 Zeichen abtippen)") {
+                startActivity(UnlockActivity.intent(this, UnlockActivity.SCOPE_ADULT))
+            })
+        }
+        return card
+    }
+
+    private fun unlockCard(): View {
+        val card = ui.card(
+            ui.cardTitle("Sperre für heute aufheben"),
+            ui.body("Dafür tippst du einen langen Satz ab. Morgen gilt die Sperre wieder."),
+        )
+        if (store.isUnlockedToday(null)) {
+            card.addView(ui.pill("Heute für alle Apps aufgehoben", ui.accentSoft, ui.accent))
+            return card
+        }
+        card.addView(ui.secondaryButton("Für alle Apps") {
+            startActivity(UnlockActivity.intent(this, UnlockActivity.SCOPE_ALL))
+        })
+        for (app in TargetApp.entries) {
+            if (store.isUnlockedToday(app)) continue
+            card.addView(ui.secondaryButton("Nur ${app.label}") {
+                startActivity(UnlockActivity.intent(this, app.name))
+            })
+        }
+        return card
     }
 
     private fun save() {
-        val next = PendingSettings(
-            perAppMode = perAppRadio.isChecked,
-            globalLimit = globalInput.minutes(store.globalLimitMinutes),
-            enabled = TargetApp.entries.associateWith { enabledBoxes.getValue(it).isChecked },
-            limits = TargetApp.entries.associateWith { limitInputs.getValue(it).minutes(store.limitMinutes(it)) },
-        )
+        val next = PendingSettings(perAppMode, globalLimit, enabled.toMap(), limits.toMap())
         if (loosens(next)) {
             pending = next
             @Suppress("DEPRECATION")
@@ -149,9 +249,10 @@ class MainActivity : Activity() {
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == me }
     }
 
-    private fun EditText.minutes(fallback: Int): Int = text.toString().trim().toIntOrNull() ?: fallback
-
     private fun minutes(ms: Long): Long = ms / Store.MINUTE
+
+    private fun fraction(used: Long, limitMinutes: Int): Float =
+        if (limitMinutes <= 0) 1f else used.toFloat() / limitMinutes
 
     private data class PendingSettings(
         val perAppMode: Boolean,
@@ -162,5 +263,8 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_SETTINGS = 1
+        private const val REQUEST_ADULT_OFF = 2
+        private const val STEP_MINUTES = 5
+        private const val MAX_MINUTES = 600
     }
 }

@@ -19,7 +19,8 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.TextView
 
 /**
- * Watches Instagram, YouTube and TikTok through the accessibility API.
+ * Watches Instagram, YouTube and TikTok through the accessibility API, and the address bar
+ * of common browsers for pornographic sites.
  *
  * Efficiency: the system only wakes this service for events from the watched apps
  * (see accessibility_config.xml). While a short video screen is open it re-checks every
@@ -37,6 +38,7 @@ class BlockerService : AccessibilityService() {
     private var overlay: View? = null
 
     private val checkScreen = Runnable { onScreenMaybeChanged() }
+    private val checkBrowser = Runnable { onBrowserMaybeChanged() }
     private val hideOverlay = Runnable { removeOverlay() }
 
     private val poll = object : Runnable {
@@ -67,6 +69,13 @@ class BlockerService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event != null && AdultFilter.isBrowser(event.packageName)) {
+            if (isAddressChange(event)) {
+                handler.removeCallbacks(checkBrowser)
+                handler.postDelayed(checkBrowser, DEBOUNCE_MS)
+            }
+            return
+        }
         // Events arrive in bursts while videos play; look at the screen once they settle.
         handler.removeCallbacks(checkScreen)
         handler.postDelayed(checkScreen, DEBOUNCE_MS)
@@ -80,6 +89,33 @@ class BlockerService : AccessibilityService() {
         removeOverlay()
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()
+    }
+
+    /**
+     * Web pages fire a constant stream of events (scrolling, animations); only window switches
+     * and text changes can mean a new address, so everything else is dropped without a lookup.
+     */
+    private fun isAddressChange(event: AccessibilityEvent): Boolean = when (event.eventType) {
+        AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> true
+        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
+            (event.contentChangeTypes and AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT) != 0
+        else -> false
+    }
+
+    private fun onBrowserMaybeChanged() {
+        if (!store.isAdultFilterActive()) return
+        val root = rootInActiveWindow ?: return
+        val address = AdultFilter.currentAddress(root) ?: return
+        if (!AdultFilter.isPorn(address)) return
+        val pkg = root.packageName
+        showOverlay("Diese Seite ist gesperrt 🔒")
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        handler.postDelayed({
+            val now = rootInActiveWindow
+            val still = now != null && now.packageName == pkg &&
+                AdultFilter.currentAddress(now)?.let(AdultFilter::isPorn) == true
+            if (still) performGlobalAction(GLOBAL_ACTION_HOME)
+        }, RETRY_MS)
     }
 
     private fun onScreenMaybeChanged() {
@@ -127,7 +163,7 @@ class BlockerService : AccessibilityService() {
 
     private fun block(app: TargetApp) {
         val now = SystemClock.elapsedRealtime()
-        if (now - lastBlockAt > OVERLAY_COOLDOWN_MS) showOverlay()
+        if (now - lastBlockAt > OVERLAY_COOLDOWN_MS) showOverlay("Genug für heute! ✋")
         lastBlockAt = now
 
         if (app.wholeAppIsShortForm) {
@@ -147,12 +183,12 @@ class BlockerService : AccessibilityService() {
         }, RETRY_MS)
     }
 
-    private fun showOverlay() {
+    private fun showOverlay(message: String) {
         removeOverlay()
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val dp = { v: Float -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics) }
         val view = TextView(this).apply {
-            text = "Genug für heute! ✋"
+            text = message
             setTextColor(0xFFFFFFFF.toInt())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             gravity = Gravity.CENTER
