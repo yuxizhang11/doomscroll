@@ -35,12 +35,15 @@ object AdultFilter {
         "com.mi.globalbrowser" to listOf("com.mi.globalbrowser:id/url"),
     )
 
-    /** Porn-specific words; matched anywhere in the address, so searches for them are caught too. */
-    private val KEYWORDS = listOf(
-        "porn", "xxx", "hentai", "xvideos", "xnxx", "xhamster", "redtube", "youporn", "brazzers",
-        "onlyfans", "chaturbate", "stripchat", "camsoda", "bongacams", "livejasmin", "rule34",
-        "spankbang", "eporner", "tnaflix", "motherless", "fapello", "thothub", "nudes", "milf",
+    /** Names of porn sites; matched anywhere, so searching for them is caught too. */
+    private val SITE_NAMES = listOf(
+        "pornhub", "xvideos", "xnxx", "xhamster", "redtube", "youporn", "brazzers",
+        "onlyfans", "chaturbate", "stripchat", "camsoda", "bongacams", "livejasmin",
+        "spankbang", "eporner", "tnaflix", "motherless", "fapello", "thothub",
     )
+
+    /** Porn words; matched anywhere, so searches for them are caught too. */
+    private val KEYWORDS = listOf("porn", "xxx", "hentai", "rule34", "nudes", "milf")
 
     /** Adult sites whose name contains none of the words above. */
     private val DOMAINS = listOf(
@@ -55,40 +58,41 @@ object AdultFilter {
     fun isBrowser(pkg: CharSequence?): Boolean = pkg != null && pkg.toString() in BROWSERS
 
     /**
-     * The address shown in the browser's bar, unless you are typing in it right now.
+     * The address shown in the browser's bar, or what is being typed into it.
      * Newer browser versions (Firefox since its Compose toolbar) have no fixed view ids, so
-     * when none is found the browser's own controls are read instead, leaving out the page itself.
+     * when none is found the browser's own controls are read instead (address bar and search
+     * suggestions), leaving out the page itself.
      */
     fun currentAddress(root: AccessibilityNodeInfo): String? {
         val ids = BROWSERS[root.packageName?.toString()] ?: return null
         for (id in ids) {
             for (node in root.findAccessibilityNodeInfosByViewId(id)) {
-                if (node.isFocused) return null
                 val text = node.text?.toString()
                 if (!text.isNullOrBlank()) return text
             }
         }
         val texts = StringBuilder()
-        if (!collectChromeText(root, texts, 0)) return null
+        collectChromeText(root, texts, 0)
         return texts.toString().ifBlank { null }
     }
 
-    /** Collects text outside the web page; false when the address bar is being typed in. */
-    private fun collectChromeText(node: AccessibilityNodeInfo, out: StringBuilder, depth: Int): Boolean {
+    /** The text field you are typing in right now, if any. */
+    fun typingField(root: AccessibilityNodeInfo): AccessibilityNodeInfo? =
+        root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }
+
+    private fun collectChromeText(node: AccessibilityNodeInfo, out: StringBuilder, depth: Int) {
         val cls = node.className?.toString().orEmpty()
-        if ("WebView" in cls || "GeckoView" in cls || depth > MAX_DEPTH) return true
-        if (node.isEditable && node.isFocused) return false
+        if ("WebView" in cls || "GeckoView" in cls || depth > MAX_DEPTH) return
         node.text?.let { out.append(it).append('\n') }
         for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            if (!collectChromeText(child, out, depth + 1)) return false
+            node.getChild(i)?.let { collectChromeText(it, out, depth + 1) }
         }
-        return true
     }
 
+    /** A porn site or a search for porn. */
     fun isPorn(address: String): Boolean {
         val text = address.lowercase()
-        if (KEYWORDS.any { it in text }) return true
+        if (SITE_NAMES.any { it in text } || KEYWORDS.any { it in text }) return true
         return text.lines().any { line ->
             val host = line.trim().substringAfter("://").substringBefore('/').substringBefore('?').removePrefix("www.")
             DOMAINS.any { host == it || host.endsWith(".$it") }

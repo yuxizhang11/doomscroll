@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -16,6 +17,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.TextView
 
 /**
@@ -105,16 +107,29 @@ class BlockerService : AccessibilityService() {
     }
 
     /**
-     * Scrolling never changes the address, so it is dropped without a lookup. Content changes
-     * all count: Compose toolbars (Firefox) report a new address as a subtree change, not a text change.
+     * Scrolling never changes the address, so it is dropped without a lookup. Typing and
+     * content changes all count: Compose toolbars (Firefox) report a new address as a subtree change, not a text change.
      */
     private fun isAddressChange(event: AccessibilityEvent): Boolean =
         event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
 
     private fun onBrowserMaybeChanged() {
         if (!store.isAdultFilterActive()) return
         val root = rootInActiveWindow ?: return
+        // Typing a porn word or site is stopped right away: the field is emptied and you
+        // are sent to the home screen before anything loads.
+        val field = AdultFilter.typingField(root)
+        if (field != null && AdultFilter.isPorn(field.text?.toString().orEmpty())) {
+            val empty = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+            }
+            field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, empty)
+            showOverlay("Diese Suche ist gesperrt 🔒")
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            return
+        }
         val address = AdultFilter.currentAddress(root) ?: return
         if (!AdultFilter.isPorn(address)) return
         val pkg = root.packageName
@@ -246,7 +261,7 @@ class BlockerService : AccessibilityService() {
 
     companion object {
         private const val DEBOUNCE_MS = 250L
-        private const val BROWSER_CHECK_MS = 700L
+        private const val BROWSER_CHECK_MS = 500L
         private const val POLL_MS = 5_000L
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L
