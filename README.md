@@ -10,7 +10,9 @@ Android-App, die Instagram Reels, YouTube Shorts und TikTok auf ein Tageslimit b
 - Limit wahlweise gemeinsam für alle Apps oder pro App. Um Mitternacht wird alles zurückgesetzt.
 - Sperre aufheben: in der Blocker-App einen vorgegebenen Satz mit mindestens 15 Wörtern abtippen (Einfügen ist gesperrt). Gilt nur für heute, pro App oder für alle. Auch ein Lockern der Limits braucht den Satz.
 - **Porno-Blocker:** In Chrome, Firefox, Samsung Internet, Brave, Edge, Opera, DuckDuckGo, Vivaldi und Kiwi liest die App nur die Adresszeile. Steht dort eine pornografische Seite oder Suche, geht es zurück und „Diese Seite ist gesperrt“ erscheint. Andere Seiten bleiben offen. Für heute aufheben oder ausschalten geht nur, indem man 20 zufällige Zeichen abtippt. Die Liste steht in [`AdultFilter.kt`](app/src/main/java/com/yuxizhang/doomscroll/AdultFilter.kt).
-- App deinstallieren = Blocker weg.
+- **Schutz vor Abschalten:** Die Einstellungsseiten, über die man die App deinstallieren, beenden oder in den Bedienungshilfen ausschalten könnte, werden sofort wieder verlassen. Optional trägt sich die App als Geräteadministrator ein, dann verweigert Android das Deinstallieren ganz. In der App 20 Zeichen abtippen hebt den Schutz für 15 Minuten auf (und entfernt den Geräteadministrator).
+- Deinstallieren: Schutz in der App aufheben, dann die App normal deinstallieren. Danach ist der Blocker weg.
+- **Updates:** Release-APKs werden mit einem festen eigenen Schlüssel signiert, sobald die GitHub-Secrets `SIGNING_KEYSTORE_BASE64` und `SIGNING_PASSWORD` gesetzt sind. Dann installieren sich neue Versionen über die alte und die Einstellungen bleiben.
 
 ## Installieren
 

@@ -1,11 +1,14 @@
 package com.yuxizhang.doomscroll
 
 import android.app.Activity
+import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
+import android.text.format.DateFormat
 import android.view.View
 import android.widget.Toast
+import java.util.Date
 
 /** Settings, today's usage, and the ways to lift a block for today. */
 class MainActivity : Activity() {
@@ -62,6 +65,7 @@ class MainActivity : Activity() {
                 todayCard(),
                 limitsCard(),
                 adultCard(),
+                protectionCard(),
                 unlockCard(),
             )
         )
@@ -71,7 +75,7 @@ class MainActivity : Activity() {
         if (isServiceEnabled()) {
             return ui.card(
                 ui.row(ui.cardTitle("Blocker ist aktiv"), ui.pill("AN", ui.successSoft, ui.success)),
-                ui.body("Läuft sparsam im Hintergrund und wird nur in Instagram, YouTube, TikTok und Browsern wach."),
+                ui.body("Läuft sparsam im Hintergrund und wird nur in Instagram, YouTube, TikTok, Browsern und den Einstellungen wach."),
             )
         }
         return ui.card(
@@ -186,6 +190,42 @@ class MainActivity : Activity() {
             unlocked -> card.addView(ui.pill("Heute aufgehoben", ui.accentSoft, ui.accent))
             else -> card.addView(ui.secondaryButton("Heute aufheben (20 Zeichen abtippen)") {
                 startActivity(UnlockActivity.intent(this, UnlockActivity.SCOPE_ADULT))
+            })
+        }
+        return card
+    }
+
+    private fun protectionCard(): View {
+        val card = ui.card(
+            ui.cardTitle("Schutz vor Abschalten"),
+            ui.body("Sperrt die Seiten in den Einstellungen, über die man den Blocker deinstallieren oder in den Bedienungshilfen ausschalten könnte. Aufheben geht nur hier mit 20 Zeichen, dann hast du ${UnlockActivity.PROTECTION_MINUTES} Minuten Zeit."),
+        )
+        val until = store.protectionUnlockedUntil
+        if (System.currentTimeMillis() < until) {
+            val time = DateFormat.getTimeFormat(this).format(Date(until))
+            card.addView(ui.pill("Aufgehoben bis $time", ui.accentSoft, ui.accent))
+        } else {
+            card.addView(ui.secondaryButton("${UnlockActivity.PROTECTION_MINUTES} Minuten aufheben (20 Zeichen abtippen)") {
+                startActivity(UnlockActivity.intent(this, UnlockActivity.SCOPE_PROTECTION))
+            })
+        }
+        val dpm = getSystemService(DevicePolicyManager::class.java)
+        val admin = ComponentName(this, AdminReceiver::class.java)
+        if (dpm.isAdminActive(admin)) {
+            card.addView(ui.pill("Deinstallieren gesperrt", ui.successSoft, ui.success))
+        } else {
+            card.addView(ui.body("Zusätzlich kannst du die App als Geräteadministrator eintragen. Dann lässt Android sie gar nicht erst deinstallieren."))
+            card.addView(ui.primaryButton("Deinstallieren sperren") {
+                // The activation screen mentions "uninstall", so let it through for a moment.
+                store.adminSetupUntil = System.currentTimeMillis() + Store.MINUTE * 2
+                startActivity(
+                    Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+                        .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
+                        .putExtra(
+                            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                            "Damit Doomscroll Blocker nicht einfach deinstalliert werden kann. Die App bekommt dadurch keine weiteren Rechte.",
+                        )
+                )
             })
         }
         return card
