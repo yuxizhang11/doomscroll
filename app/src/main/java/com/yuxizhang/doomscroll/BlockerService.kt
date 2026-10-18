@@ -38,7 +38,11 @@ class BlockerService : AccessibilityService() {
     private var overlay: View? = null
 
     private val checkScreen = Runnable { onScreenMaybeChanged() }
-    private val checkBrowser = Runnable { onBrowserMaybeChanged() }
+    private var browserCheckPending = false
+    private val checkBrowser = Runnable {
+        browserCheckPending = false
+        onBrowserMaybeChanged()
+    }
     private val checkGuard = Runnable { onSettingsMaybeChanged() }
     private val hideOverlay = Runnable { removeOverlay() }
 
@@ -71,9 +75,11 @@ class BlockerService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event != null && AdultFilter.isBrowser(event.packageName)) {
-            if (isAddressChange(event)) {
-                handler.removeCallbacks(checkBrowser)
-                handler.postDelayed(checkBrowser, DEBOUNCE_MS)
+            // Throttled, not debounced: a loading page fires events nonstop and would push a
+            // debounced check back forever.
+            if (isAddressChange(event) && !browserCheckPending) {
+                browserCheckPending = true
+                handler.postDelayed(checkBrowser, BROWSER_CHECK_MS)
             }
             return
         }
@@ -94,19 +100,17 @@ class BlockerService : AccessibilityService() {
         runCatching { unregisterReceiver(screenOff) }
         removeOverlay()
         handler.removeCallbacksAndMessages(null)
+        browserCheckPending = false
         super.onDestroy()
     }
 
     /**
-     * Web pages fire a constant stream of events (scrolling, animations); only window switches
-     * and text changes can mean a new address, so everything else is dropped without a lookup.
+     * Scrolling never changes the address, so it is dropped without a lookup. Content changes
+     * all count: Compose toolbars (Firefox) report a new address as a subtree change, not a text change.
      */
-    private fun isAddressChange(event: AccessibilityEvent): Boolean = when (event.eventType) {
-        AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> true
-        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
-            (event.contentChangeTypes and AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT) != 0
-        else -> false
-    }
+    private fun isAddressChange(event: AccessibilityEvent): Boolean =
+        event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
 
     private fun onBrowserMaybeChanged() {
         if (!store.isAdultFilterActive()) return
@@ -242,6 +246,7 @@ class BlockerService : AccessibilityService() {
 
     companion object {
         private const val DEBOUNCE_MS = 250L
+        private const val BROWSER_CHECK_MS = 700L
         private const val POLL_MS = 5_000L
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L

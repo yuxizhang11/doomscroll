@@ -19,6 +19,7 @@ object AdultFilter {
             "org.mozilla.firefox:id/url_bar_title",
         ),
         "org.mozilla.firefox_beta" to listOf("org.mozilla.firefox_beta:id/mozac_browser_toolbar_url_view"),
+        "org.mozilla.fenix" to listOf("org.mozilla.fenix:id/mozac_browser_toolbar_url_view"),
         "org.mozilla.focus" to listOf("org.mozilla.focus:id/mozac_browser_toolbar_url_view", "org.mozilla.focus:id/display_url"),
         "com.sec.android.app.sbrowser" to listOf(
             "com.sec.android.app.sbrowser:id/location_bar_edit_text",
@@ -49,9 +50,15 @@ object AdultFilter {
         "nuvid.com", "drtuber.com", "sunporno.com", "luscious.net", "f95zone.to",
     )
 
+    private const val MAX_DEPTH = 40
+
     fun isBrowser(pkg: CharSequence?): Boolean = pkg != null && pkg.toString() in BROWSERS
 
-    /** The address shown in the browser's bar, unless you are typing in it right now. */
+    /**
+     * The address shown in the browser's bar, unless you are typing in it right now.
+     * Newer browser versions (Firefox since its Compose toolbar) have no fixed view ids, so
+     * when none is found the browser's own controls are read instead, leaving out the page itself.
+     */
     fun currentAddress(root: AccessibilityNodeInfo): String? {
         val ids = BROWSERS[root.packageName?.toString()] ?: return null
         for (id in ids) {
@@ -61,13 +68,30 @@ object AdultFilter {
                 if (!text.isNullOrBlank()) return text
             }
         }
-        return null
+        val texts = StringBuilder()
+        if (!collectChromeText(root, texts, 0)) return null
+        return texts.toString().ifBlank { null }
+    }
+
+    /** Collects text outside the web page; false when the address bar is being typed in. */
+    private fun collectChromeText(node: AccessibilityNodeInfo, out: StringBuilder, depth: Int): Boolean {
+        val cls = node.className?.toString().orEmpty()
+        if ("WebView" in cls || "GeckoView" in cls || depth > MAX_DEPTH) return true
+        if (node.isEditable && node.isFocused) return false
+        node.text?.let { out.append(it).append('\n') }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            if (!collectChromeText(child, out, depth + 1)) return false
+        }
+        return true
     }
 
     fun isPorn(address: String): Boolean {
-        val text = address.lowercase().trim()
+        val text = address.lowercase()
         if (KEYWORDS.any { it in text }) return true
-        val host = text.substringAfter("://").substringBefore('/').substringBefore('?').removePrefix("www.")
-        return DOMAINS.any { host == it || host.endsWith(".$it") }
+        return text.lines().any { line ->
+            val host = line.trim().substringAfter("://").substringBefore('/').substringBefore('?').removePrefix("www.")
+            DOMAINS.any { host == it || host.endsWith(".$it") }
+        }
     }
 }
