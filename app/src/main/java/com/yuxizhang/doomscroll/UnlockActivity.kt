@@ -32,7 +32,7 @@ class UnlockActivity : Activity() {
 
         val scope = intent.getStringExtra(EXTRA_SCOPE) ?: SCOPE_ALL
         val app = TargetApp.entries.firstOrNull { it.name == scope }
-        val adult = scope == SCOPE_ADULT || scope == SCOPE_ADULT_OFF || scope == SCOPE_PROTECTION
+        val adult = scope == SCOPE_ADULT || scope == SCOPE_ADULT_OFF || scope == SCOPE_PROTECTION || scope == SCOPE_APP_SETTINGS
         challenge = savedInstanceState?.getString(KEY_CHALLENGE)
             ?: if (adult) randomCode() else SENTENCES.random()
 
@@ -42,6 +42,7 @@ class UnlockActivity : Activity() {
             SCOPE_ADULT -> "Um den Porno-Blocker heute aufzuheben"
             SCOPE_ADULT_OFF -> "Um den Porno-Blocker auszuschalten"
             SCOPE_PROTECTION -> "Um den Schutz für ${PROTECTION_MINUTES} Minuten aufzuheben"
+            SCOPE_APP_SETTINGS -> "Um die App-Einstellungen zu öffnen"
             else -> "Um die Sperre heute für ${app?.label} aufzuheben"
         }
         val instruction = if (adult) {
@@ -90,10 +91,12 @@ class UnlockActivity : Activity() {
                 SCOPE_SETTINGS, SCOPE_ADULT_OFF -> Unit
                 SCOPE_ADULT -> Store.get(this).unlockAdultToday()
                 SCOPE_PROTECTION -> liftProtection()
+                // Only opens the page; uninstalling stays blocked while device admin is on.
+                SCOPE_APP_SETTINGS -> Store.get(this).protectionUnlockedUntil = System.currentTimeMillis() + APP_SETTINGS_MS
                 else -> Store.get(this).unlockToday(app)
             }
             val done = when (scope) {
-                SCOPE_SETTINGS, SCOPE_ADULT_OFF -> null
+                SCOPE_SETTINGS, SCOPE_ADULT_OFF, SCOPE_APP_SETTINGS -> null
                 SCOPE_PROTECTION -> "Schutz für $PROTECTION_MINUTES Minuten aufgehoben."
                 else -> "Für heute aufgehoben."
             }
@@ -147,7 +150,9 @@ class UnlockActivity : Activity() {
         const val SCOPE_ADULT = "ADULT"
         const val SCOPE_ADULT_OFF = "ADULT_OFF"
         const val SCOPE_PROTECTION = "PROTECTION"
+        const val SCOPE_APP_SETTINGS = "APP_SETTINGS"
         const val PROTECTION_MINUTES = 15
+        private const val APP_SETTINGS_MS = 2 * Store.MINUTE
 
         // No look-alikes such as 0/O or 1/l/I, so the code can be typed without guessing.
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"

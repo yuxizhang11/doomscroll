@@ -283,7 +283,7 @@ class MainActivity : Activity() {
      */
     private fun appSettingsButton(): View = ui.secondaryButton("App-Einstellungen öffnen") {
         if (isServiceEnabled() && store.isProtectionActive()) {
-            startActivityForResult(UnlockActivity.intent(this, UnlockActivity.SCOPE_PROTECTION), REQUEST_APP_SETTINGS)
+            startActivityForResult(UnlockActivity.intent(this, UnlockActivity.SCOPE_APP_SETTINGS), REQUEST_APP_SETTINGS)
         } else {
             openAppSettings()
         }

@@ -39,7 +39,11 @@ class BlockerService : AccessibilityService() {
     private var lastBlockAt = 0L
     private var overlay: View? = null
 
-    private val checkScreen = Runnable { onScreenMaybeChanged() }
+    private var lastScreenCheck = 0L
+    private val checkScreen = Runnable {
+        lastScreenCheck = SystemClock.elapsedRealtime()
+        onScreenMaybeChanged()
+    }
     private var browserCheckPending = false
     private val checkBrowser = Runnable {
         browserCheckPending = false
@@ -100,9 +104,11 @@ class BlockerService : AccessibilityService() {
             handler.postDelayed(checkGuard, DEBOUNCE_MS)
             return
         }
-        // Events arrive in bursts while videos play; look at the screen once they settle.
+        // Events arrive in bursts while videos play; look at the screen once they settle,
+        // but at least once a second, since a playing video may never let them settle.
         handler.removeCallbacks(checkScreen)
-        handler.postDelayed(checkScreen, DEBOUNCE_MS)
+        val waited = SystemClock.elapsedRealtime() - lastScreenCheck
+        handler.postDelayed(checkScreen, if (waited > SCREEN_MAX_WAIT_MS) 0 else DEBOUNCE_MS)
     }
 
     override fun onInterrupt() = Unit
@@ -128,13 +134,15 @@ class BlockerService : AccessibilityService() {
     /** Porn first; otherwise the browser may be showing short videos (youtube.com/shorts and so on). */
     private fun onBrowserMaybeChanged() {
         val root = rootInActiveWindow ?: return
-        if (store.isAdultFilterActive() && blockPorn(root)) return
         if (!AdultFilter.isBrowser(root.packageName)) return
-        onScreenMaybeChanged(AdultFilter.currentAddress(root)?.let(TargetApp::fromAddress))
+        // Read once: on browsers without known ids this walks the toolbar.
+        val address = AdultFilter.currentAddress(root)
+        if (store.isAdultFilterActive() && blockPorn(root, address)) return
+        onScreenMaybeChanged(address?.let(TargetApp::fromAddress))
     }
 
     /** Returns true when it stepped in. */
-    private fun blockPorn(root: AccessibilityNodeInfo): Boolean {
+    private fun blockPorn(root: AccessibilityNodeInfo, address: String?): Boolean {
         // Typing a porn word or site is stopped right away: the field is emptied and you
         // are sent to the home screen before anything loads.
         val field = AdultFilter.typingField(root)
@@ -147,8 +155,7 @@ class BlockerService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_HOME)
             return true
         }
-        val address = AdultFilter.currentAddress(root) ?: return false
-        if (!AdultFilter.isPorn(address)) return false
+        if (address == null || !AdultFilter.isPorn(address)) return false
         val pkg = root.packageName
         showOverlay("Diese Seite ist gesperrt 🔒")
         performGlobalAction(GLOBAL_ACTION_BACK)
@@ -230,7 +237,9 @@ class BlockerService : AccessibilityService() {
 
     private fun block(app: TargetApp) {
         val now = SystemClock.elapsedRealtime()
-        if (now - lastBlockAt > OVERLAY_COOLDOWN_MS) showOverlay("Genug für heute! ✋")
+        if (now - lastBlockAt > OVERLAY_COOLDOWN_MS) {
+            showOverlay(if (store.isQuietNow()) "Ruhezeit 🌙" else "Genug für heute! ✋")
+        }
         lastBlockAt = now
 
         if (app.wholeAppIsShortForm) {
@@ -289,6 +298,7 @@ class BlockerService : AccessibilityService() {
 
     companion object {
         private const val DEBOUNCE_MS = 250L
+        private const val SCREEN_MAX_WAIT_MS = 1_000L
         private const val BROWSER_CHECK_MS = 500L
         private const val POLL_MS = 5_000L
         private const val RETRY_MS = 600L
