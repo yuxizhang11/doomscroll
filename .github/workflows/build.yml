@@ -51,18 +51,3 @@ jobs:
           else
             gh release create "$tag" "$apk" --target "$GITHUB_SHA" --title "Doomscroll Blocker $tag" --generate-notes
           fi
-      # The app looks for updates in a public repo that only holds the APKs, so the code can stay private.
-      - name: Publish to the public release repo
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.GH_TOKEN != ''
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: |
-          version=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
-          tag="v$version"
-          apk="doomscroll-blocker-$tag.apk"
-          repo=yuxizhang11/doomscroll-releases
-          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
-            gh release upload "$tag" "$apk" --repo "$repo" --clobber
-          else
-            gh release create "$tag" "$apk" --repo "$repo" --title "Doomscroll Blocker $tag" --notes "Doomscroll Blocker $tag"
-          fi

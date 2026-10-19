@@ -96,8 +96,8 @@ object Updater {
         return false
     }
 
-    // Public repo that only holds the APKs; the code stays private.
-    private const val REPO = "yuxizhang11/doomscroll-releases"
+    // Releases are read without a login, so this repo has to be public.
+    private const val REPO = "yuxizhang11/doomscroll"
     private const val LATEST_RELEASE = "https://api.github.com/repos/$REPO/releases/latest"
     private const val TIMEOUT_MS = 15_000
 }
