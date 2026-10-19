@@ -24,6 +24,8 @@ enum class TargetApp(
      * changes depending on where they were opened from.
      */
     private val shortFormIdParts: List<String> = emptyList(),
+    /** Parts of view ids of full-screen screens that look like a player but must not count. */
+    private val excludedIdParts: List<String> = emptyList(),
     /** True when the whole app is a short-video feed, so leaving means going home. */
     val wholeAppIsShortForm: Boolean = false,
 ) {
@@ -36,7 +38,9 @@ enum class TargetApp(
             "com.instagram.android:id/clips_viewer_container",
         ),
         // A reel tapped in the home feed opens full screen in a viewer whose ids vary.
-        shortFormIdParts = listOf("clips_viewer", "clips_video", "reel_viewer"),
+        shortFormIdParts = listOf("clips_viewer", "clips_video"),
+        // Instagram calls stories "reels" internally; the story viewer must never count.
+        excludedIdParts = listOf("reel_viewer", "story_viewer"),
         webAddresses = listOf("instagram.com/reel"),
     ),
     YOUTUBE(
@@ -76,7 +80,8 @@ enum class TargetApp(
         val player = shortFormViewIds.any { id ->
             root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser && fillsScreen(it, root) }
         }
-        if (player || hasPlayerById(root)) return true
+        if (excludedIdParts.isNotEmpty() && hasFullScreenId(root, excludedIdParts)) return false
+        if (player || hasFullScreenId(root, shortFormIdParts)) return true
         return shortFormTabs.any { tab ->
             root.findAccessibilityNodeInfosByText(tab).any {
                 it.isVisibleToUser && (it.isSelected || it.parent?.isSelected == true)
@@ -84,15 +89,15 @@ enum class TargetApp(
         }
     }
 
-    /** Looks for a full-screen node whose id contains one of [shortFormIdParts]. */
-    private fun hasPlayerById(root: AccessibilityNodeInfo): Boolean {
-        if (shortFormIdParts.isEmpty()) return false
+    /** Looks for a full-screen node whose id contains one of [parts]. */
+    private fun hasFullScreenId(root: AccessibilityNodeInfo, parts: List<String>): Boolean {
+        if (parts.isEmpty()) return false
         val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
         var seen = 0
         while (queue.isNotEmpty() && seen++ < MAX_NODES) {
             val node = queue.removeFirst()
             val id = node.viewIdResourceName
-            if (id != null && shortFormIdParts.any { it in id } && node.isVisibleToUser && fillsScreen(node, root)) {
+            if (id != null && parts.any { it in id } && node.isVisibleToUser && fillsScreen(node, root)) {
                 return true
             }
             // A child can only fill the screen if its parent does, so skip small branches.
