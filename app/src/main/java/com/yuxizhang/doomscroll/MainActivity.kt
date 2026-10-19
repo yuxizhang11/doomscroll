@@ -42,6 +42,13 @@ class MainActivity : Activity() {
     /** First-start setup: 0 = not running, 1 = choose apps, 2 = choose time. */
     private var setupStep = 0
 
+    /** Result of the update check: a newer release, or null. Checked once per screen visit. */
+    private var update: Updater.Release? = null
+    private var updateStatus = "Suche nach Updates …"
+    private var updateChecked = false
+    private var installing = false
+    private var updateHolder: android.widget.LinearLayout? = null
+
     /** Holds the limits card so adding or removing an app redraws only that card. */
     private var limitsHolder: android.widget.LinearLayout? = null
 
@@ -57,6 +64,20 @@ class MainActivity : Activity() {
         }
         loadDraft()
         render()
+        if (!updateChecked) checkForUpdate()
+    }
+
+    private fun checkForUpdate() {
+        updateChecked = true
+        updateStatus = "Suche nach Updates …"
+        Updater.check(this) { result ->
+            update = result.getOrNull()
+            updateStatus = result.fold(
+                onSuccess = { if (it == null) "Du hast die neueste Version." else "Version ${it.version} ist da." },
+                onFailure = { "Konnte nicht nachsehen: ${it.message}" },
+            )
+            if (!isFinishing) refreshUpdateCard()
+        }
     }
 
     private fun startSetup() {
@@ -179,6 +200,7 @@ class MainActivity : Activity() {
                 adultCard(),
                 protectionCard(),
                 unlockCard(),
+                ui.column(updateCard()).also { updateHolder = it },
             )
         )
     }
@@ -439,6 +461,47 @@ class MainActivity : Activity() {
             })
         }
         return card
+    }
+
+    private fun updateCard(): View {
+        val card = ui.card(
+            ui.cardTitle("Updates"),
+            ui.body("Installiert: Version ${Updater.currentVersion(this)}. $updateStatus"),
+        )
+        val release = update
+        when {
+            installing -> card.addView(ui.pill("Wird heruntergeladen …", ui.accentSoft, ui.accent))
+            release != null -> card.addView(ui.primaryButton("Version ${release.version} installieren") { installUpdate(release) })
+            else -> card.addView(ui.secondaryButton("Nach Updates suchen") {
+                checkForUpdate()
+                refreshUpdateCard()
+            })
+        }
+        return card
+    }
+
+    private fun installUpdate(release: Updater.Release) {
+        // Android lets an app install updates only after you allow it once.
+        if (!packageManager.canRequestPackageInstalls()) {
+            Toast.makeText(this, "Erlaube „Apps aus dieser Quelle“, dann tippe nochmal", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        installing = true
+        refreshUpdateCard()
+        Updater.install(this, release) { error ->
+            installing = false
+            if (error != null) updateStatus = "Download fehlgeschlagen: $error"
+            if (!isFinishing) refreshUpdateCard()
+        }
+    }
+
+    /** Redraws only the update card, so the page doesn't jump while you scroll. */
+    private fun refreshUpdateCard() {
+        updateHolder?.apply {
+            removeAllViews()
+            addView(updateCard())
+        }
     }
 
     private fun unlockCard(): View {
