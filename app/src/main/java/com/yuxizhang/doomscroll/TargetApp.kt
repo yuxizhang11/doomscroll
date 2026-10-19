@@ -1,5 +1,6 @@
 package com.yuxizhang.doomscroll
 
+import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
@@ -25,10 +26,9 @@ enum class TargetApp(
         label = "Instagram Reels",
         packages = setOf("com.instagram.android"),
         shortFormViewIds = listOf(
+            // Only the full-screen Reels viewer; reels in the home feed don't count.
             "com.instagram.android:id/clips_viewer_view_pager",
             "com.instagram.android:id/clips_viewer_container",
-            "com.instagram.android:id/clips_video_container",
-            "com.instagram.android:id/root_clips_layout",
         ),
         webAddresses = listOf("instagram.com/reel"),
     ),
@@ -67,7 +67,7 @@ enum class TargetApp(
     fun isShortFormOnScreen(root: AccessibilityNodeInfo): Boolean {
         if (wholeAppIsShortForm) return true
         val player = shortFormViewIds.any { id ->
-            root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser }
+            root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser && fillsScreen(it, root) }
         }
         return player || shortFormTabs.any { tab ->
             root.findAccessibilityNodeInfosByText(tab).any {
@@ -76,7 +76,16 @@ enum class TargetApp(
         }
     }
 
+    /** The player has to cover most of the screen; a small preview in a feed doesn't count. */
+    private fun fillsScreen(node: AccessibilityNodeInfo, root: AccessibilityNodeInfo): Boolean {
+        val player = Rect().also(node::getBoundsInScreen)
+        val screen = Rect().also(root::getBoundsInScreen)
+        return screen.height() > 0 && player.height() >= screen.height() * FULL_SCREEN_SHARE
+    }
+
     companion object {
+        private const val FULL_SCREEN_SHARE = 0.7f
+
         fun fromPackage(pkg: CharSequence?): TargetApp? {
             if (pkg == null) return null
             val name = pkg.toString()
