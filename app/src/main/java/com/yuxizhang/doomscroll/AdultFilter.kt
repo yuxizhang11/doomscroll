@@ -52,7 +52,10 @@ object AdultFilter {
     )
 
     /** Porn words; matched anywhere, so searches for them are caught too. */
-    private val KEYWORDS = listOf("porn", "xxx", "hentai", "rule34", "nudes", "milf")
+    private val KEYWORDS = listOf("porn", "hentai", "rule34", "nudes")
+
+    /** Words that are also parts of harmless ones (XXXL, Milford), so only whole words count. */
+    private val WHOLE_WORDS = Regex("(?<![a-z])(xxx|milfs?)(?![a-z])")
 
     /** Adult sites whose name contains none of the words above. */
     private val DOMAINS = listOf(
@@ -102,6 +105,7 @@ object AdultFilter {
     fun isPorn(address: String): Boolean {
         val text = address.lowercase()
         if (SITE_NAMES.any { it in text } || KEYWORDS.any { it in text }) return true
+        if (WHOLE_WORDS.containsMatchIn(text)) return true
         return text.lines().any { line ->
             val host = line.trim().substringAfter("://").substringBefore('/').substringBefore('?').removePrefix("www.")
             DOMAINS.any { host == it || host.endsWith(".$it") }
