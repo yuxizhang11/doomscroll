@@ -39,11 +39,102 @@ class MainActivity : Activity() {
     /** Settings waiting for the unlock sentence because they loosen a limit. */
     private var pending: PendingSettings? = null
 
+    /** First-start setup: 0 = not running, 1 = choose apps, 2 = choose time. */
+    private var setupStep = 0
+
+    /** Holds the limits card so adding or removing an app redraws only that card. */
+    private var limitsHolder: android.widget.LinearLayout? = null
+
     override fun onResume() {
         super.onResume()
         store = Store.get(this)
         ui = Ui(this)
         ui.styleWindow(this)
+        if (!store.setupDone) {
+            if (setupStep == 0) startSetup()
+            renderSetup()
+            return
+        }
+        loadDraft()
+        render()
+    }
+
+    private fun startSetup() {
+        loadDraft()
+        // Nothing is chosen yet; you pick your apps yourself.
+        TargetApp.entries.forEach { enabled[it] = false }
+        setupStep = 1
+    }
+
+    private fun renderSetup() {
+        val chosen = TargetApp.entries.filter { enabled.getValue(it) }
+        val content = if (setupStep == 1) {
+            val card = ui.card(
+                ui.cardTitle("Welche Apps nutzt du?"),
+                ui.body("Nur diese werden gezählt und gesperrt. Die anderen blende ich aus, du kannst sie später in den Einstellungen ergänzen."),
+                ui.spacer(4f),
+            )
+            for (app in TargetApp.entries) {
+                val toggle = ui.switch(enabled.getValue(app)).apply {
+                    setOnCheckedChangeListener { _, on -> enabled[app] = on }
+                }
+                card.addView(ui.row(ui.label(app.label, 16f, ui.textColor, bold = true), toggle).apply {
+                    setPadding(0, ui.dp(8f), 0, ui.dp(8f))
+                })
+            }
+            card.addView(ui.spacer(8f))
+            card.addView(ui.primaryButton("Weiter") {
+                if (TargetApp.entries.none { enabled.getValue(it) }) {
+                    Toast.makeText(this, "Wähle mindestens eine App", Toast.LENGTH_SHORT).show()
+                } else {
+                    setupStep = 2
+                    renderSetup()
+                }
+            })
+            card
+        } else {
+            val globalRow = stepper("Für alle zusammen", globalLimit) { globalLimit = it }
+            val appSteppers = chosen.associateWith { app ->
+                stepper(app.label, limits.getValue(app)) { limits[app] = it }
+            }
+            fun showMode() {
+                globalRow.visibility = if (perAppMode) View.GONE else View.VISIBLE
+                appSteppers.values.forEach { it.visibility = if (perAppMode) View.VISIBLE else View.GONE }
+            }
+            val card = ui.card(
+                ui.cardTitle("Wie viel Zeit pro Tag?"),
+                ui.body("Ein Limit für alle Apps zusammen oder für jede App ein eigenes. Später mehr Zeit geben braucht den langen Satz."),
+                ui.spacer(8f),
+                ui.segmented(listOf("Gemeinsam", "Pro App"), if (perAppMode) 1 else 0) {
+                    perAppMode = it == 1
+                    showMode()
+                },
+                ui.spacer(8f),
+                globalRow,
+            )
+            appSteppers.values.forEach(card::addView)
+            card.addView(ui.spacer(8f))
+            card.addView(ui.primaryButton("Fertig") { finishSetup() })
+            card.addView(ui.secondaryButton("Zurück") {
+                setupStep = 1
+                renderSetup()
+            })
+            showMode()
+            card
+        }
+        setContentView(
+            ui.page(
+                ui.title("Willkommen 👋"),
+                ui.subtitle("Schritt $setupStep von 2 · Lass uns den Blocker einrichten."),
+                content,
+            )
+        )
+    }
+
+    private fun finishSetup() {
+        apply(PendingSettings(perAppMode, globalLimit, enabled.toMap(), limits.toMap(), warnMinutes, quietEnabled, quietStart, quietEnd))
+        store.setupDone = true
+        setupStep = 0
         loadDraft()
         render()
     }
@@ -83,7 +174,7 @@ class MainActivity : Activity() {
                 statusCard(),
                 todayCard(),
                 weekCard(),
-                limitsCard(),
+                ui.column(limitsCard()).also { limitsHolder = it },
                 quietCard(),
                 adultCard(),
                 protectionCard(),
@@ -96,7 +187,7 @@ class MainActivity : Activity() {
         if (isServiceEnabled()) {
             return ui.card(
                 ui.row(ui.cardTitle("Blocker ist aktiv"), ui.pill("AN", ui.successSoft, ui.success)),
-                ui.body("Läuft sparsam im Hintergrund und wird nur in Instagram, YouTube, TikTok, Snapchat, Facebook, Browsern und den Einstellungen wach."),
+                ui.body("Läuft sparsam im Hintergrund und wird nur in deinen Apps, Browsern und den Einstellungen wach."),
                 appSettingsButton(),
             )
         }
@@ -178,7 +269,8 @@ class MainActivity : Activity() {
 
     private fun limitsCard(): View {
         val globalRow = stepper("Limit für alle zusammen", globalLimit) { globalLimit = it }
-        val appSteppers = TargetApp.entries.associateWith { app ->
+        val mine = TargetApp.entries.filter { enabled.getValue(it) }
+        val appSteppers = mine.associateWith { app ->
             stepper("Tageslimit", limits.getValue(app)) { limits[app] = it }
         }
         fun showMode() {
@@ -188,7 +280,7 @@ class MainActivity : Activity() {
 
         val card = ui.card(
             ui.cardTitle("Limits"),
-            ui.body("Lockern (mehr Zeit, App aus, Modus wechseln) braucht den langen Satz."),
+            ui.body("Lockern (mehr Zeit, App entfernen, Modus wechseln) braucht den langen Satz."),
             ui.spacer(8f),
             ui.segmented(listOf("Gemeinsam", "Pro App"), if (perAppMode) 1 else 0) {
                 perAppMode = it == 1
@@ -197,15 +289,26 @@ class MainActivity : Activity() {
             ui.spacer(8f),
             globalRow,
         )
-        for (app in TargetApp.entries) {
-            val toggle = ui.switch(enabled.getValue(app)).apply {
-                setOnCheckedChangeListener { _, on -> enabled[app] = on }
-            }
+        for (app in mine) {
             card.addView(ui.spacer(10f))
-            card.addView(ui.row(ui.label(app.label, 16f, ui.textColor, bold = true), toggle))
+            card.addView(ui.row(
+                ui.label(app.label, 16f, ui.textColor, bold = true),
+                ui.roundButton("✕") { setAppChosen(app, false) },
+            ))
             card.addView(appSteppers.getValue(app))
         }
-        card.addView(ui.body("TikTok zählt komplett, weil es fast nur aus dem Video-Feed besteht."))
+        if (enabled.getValue(TargetApp.TIKTOK)) {
+            card.addView(ui.body("TikTok zählt komplett, weil es fast nur aus dem Video-Feed besteht."))
+        }
+        val hidden = TargetApp.entries - mine.toSet()
+        if (hidden.isNotEmpty()) {
+            card.addView(ui.spacer(10f))
+            card.addView(ui.label("Weitere Apps", 16f, ui.textColor, bold = true))
+            card.addView(ui.body("Ausgeblendet, also nicht gezählt. Hinzufügen gilt nach „Speichern“."))
+            for (app in hidden) {
+                card.addView(ui.secondaryButton("+ ${app.label} hinzufügen") { setAppChosen(app, true) })
+            }
+        }
         card.addView(ui.spacer(10f))
         card.addView(ui.label("Vorwarnung", 16f, ui.textColor, bold = true))
         card.addView(stepper("Minuten vor Ablauf", warnMinutes) { warnMinutes = it })
@@ -213,6 +316,15 @@ class MainActivity : Activity() {
         card.addView(ui.primaryButton("Speichern") { save() })
         showMode()
         return card
+    }
+
+    /** Adds or removes an app in the draft; it takes effect on "Speichern". */
+    private fun setAppChosen(app: TargetApp, chosen: Boolean) {
+        enabled[app] = chosen
+        limitsHolder?.apply {
+            removeAllViews()
+            addView(limitsCard())
+        }
     }
 
     /** "Label   −  [15] min  +": type any number of minutes, or step by 5 with the buttons. */
@@ -342,7 +454,7 @@ class MainActivity : Activity() {
             startActivity(UnlockActivity.intent(this, UnlockActivity.SCOPE_ALL))
         })
         for (app in TargetApp.entries) {
-            if (store.isUnlockedToday(app)) continue
+            if (!store.isEnabled(app) || store.isUnlockedToday(app)) continue
             card.addView(ui.secondaryButton("Nur ${app.label}") {
                 startActivity(UnlockActivity.intent(this, app.name))
             })

@@ -182,7 +182,9 @@ class BlockerService : AccessibilityService() {
         }, RETRY_MS)
     }
 
-    private fun onScreenMaybeChanged(app: TargetApp? = detectShortForm()) {
+    private fun onScreenMaybeChanged(detected: TargetApp? = detectShortForm()) {
+        // Apps you did not choose are neither counted nor blocked.
+        val app = detected?.takeIf(store::isEnabled)
         when {
             app == null -> endSession()
             app != activeApp -> startSession(app)
