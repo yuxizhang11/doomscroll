@@ -28,6 +28,12 @@ class Store private constructor(context: Context) {
     fun setLimitMinutes(app: TargetApp, minutes: Int) =
         prefs.edit().putInt("limit_${app.name}", minutes.coerceAtLeast(0)).apply()
 
+    /** False until the first-start setup (which apps, how much time) has been finished. */
+    var setupDone: Boolean
+        get() = prefs.getBoolean(KEY_SETUP_DONE, false)
+        set(value) = prefs.edit().putBoolean(KEY_SETUP_DONE, value).apply()
+
+    /** Whether [app] is one of your apps: only these are counted, blocked and shown. */
     fun isEnabled(app: TargetApp): Boolean = prefs.getBoolean("enabled_${app.name}", true)
 
     fun setEnabled(app: TargetApp, enabled: Boolean) =
@@ -201,6 +207,7 @@ class Store private constructor(context: Context) {
             else -> minute >= start || minute < end
         }
         private const val KEY_PER_APP = "per_app_mode"
+        private const val KEY_SETUP_DONE = "setup_done"
         private const val KEY_GLOBAL_LIMIT = "global_limit"
         private const val KEY_DAY = "day"
         private const val KEY_ADULT = "adult_filter"

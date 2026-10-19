@@ -19,6 +19,11 @@ enum class TargetApp(
     private val shortFormTabs: List<String> = emptyList(),
     /** Parts of a web address that mean this app's short videos are open in a browser. */
     private val webAddresses: List<String> = emptyList(),
+    /**
+     * Parts of view ids that belong to a full-screen player, for players whose exact id
+     * changes depending on where they were opened from.
+     */
+    private val shortFormIdParts: List<String> = emptyList(),
     /** True when the whole app is a short-video feed, so leaving means going home. */
     val wholeAppIsShortForm: Boolean = false,
 ) {
@@ -30,6 +35,8 @@ enum class TargetApp(
             "com.instagram.android:id/clips_viewer_view_pager",
             "com.instagram.android:id/clips_viewer_container",
         ),
+        // A reel tapped in the home feed opens full screen in a viewer whose ids vary.
+        shortFormIdParts = listOf("clips_viewer", "clips_video", "reel_viewer"),
         webAddresses = listOf("instagram.com/reel"),
     ),
     YOUTUBE(
@@ -69,11 +76,30 @@ enum class TargetApp(
         val player = shortFormViewIds.any { id ->
             root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser && fillsScreen(it, root) }
         }
-        return player || shortFormTabs.any { tab ->
+        if (player || hasPlayerById(root)) return true
+        return shortFormTabs.any { tab ->
             root.findAccessibilityNodeInfosByText(tab).any {
                 it.isVisibleToUser && (it.isSelected || it.parent?.isSelected == true)
             }
         }
+    }
+
+    /** Looks for a full-screen node whose id contains one of [shortFormIdParts]. */
+    private fun hasPlayerById(root: AccessibilityNodeInfo): Boolean {
+        if (shortFormIdParts.isEmpty()) return false
+        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
+        var seen = 0
+        while (queue.isNotEmpty() && seen++ < MAX_NODES) {
+            val node = queue.removeFirst()
+            val id = node.viewIdResourceName
+            if (id != null && shortFormIdParts.any { it in id } && node.isVisibleToUser && fillsScreen(node, root)) {
+                return true
+            }
+            // A child can only fill the screen if its parent does, so skip small branches.
+            if (node !== root && !fillsScreen(node, root)) continue
+            for (i in 0 until node.childCount) node.getChild(i)?.let(queue::add)
+        }
+        return false
     }
 
     /** The player has to cover most of the screen; a small preview in a feed doesn't count. */
@@ -85,6 +111,7 @@ enum class TargetApp(
 
     companion object {
         private const val FULL_SCREEN_SHARE = 0.7f
+        private const val MAX_NODES = 300
 
         fun fromPackage(pkg: CharSequence?): TargetApp? {
             if (pkg == null) return null
