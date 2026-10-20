@@ -118,8 +118,23 @@ class MainActivity : Activity() {
                 onSuccess = { if (it == null) "Du hast die neueste Version." else "Version ${it.version} ist da." },
                 onFailure = { "Konnte nicht nachsehen: ${it.message}" },
             )
-            if (!isFinishing) refreshUpdateCard()
+            if (!isFinishing) {
+                refreshUpdateCard()
+                update?.let(::offerUpdate)
+            }
         }
+    }
+
+    /** Pops up once per app start when a newer version is waiting. */
+    private fun offerUpdate(release: Updater.Release) {
+        if (offeredVersion == release.version || !store.setupDone) return
+        offeredVersion = release.version
+        AlertDialog.Builder(this)
+            .setTitle("Update verfügbar")
+            .setMessage("Version ${release.version} ist da. Jetzt installieren?")
+            .setPositiveButton("Installieren") { _, _ -> installUpdate(release) }
+            .setNegativeButton("Später", null)
+            .show()
     }
 
     private fun startSetup() {
@@ -688,6 +703,9 @@ class MainActivity : Activity() {
         private const val REQUEST_APP_SETTINGS = 3
         private const val REQUEST_SETUP = 4
         private const val REQUEST_NOTIFICATIONS = 5
+
+        /** The version the update popup was shown for in this app start. */
+        private var offeredVersion: String? = null
 
         /** Ask for the notification permission once per app start, not on every return. */
         private var askedForNotifications = false

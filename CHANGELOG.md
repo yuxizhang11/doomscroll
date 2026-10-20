@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17
+
+- Popup in der App, sobald ein Update verfügbar ist.
+
 ## 1.16
 
 - Nach jedem Update zeigt die App kurz, was neu ist.

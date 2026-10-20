@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.17" to listOf(
+            "Popup in der App, sobald ein Update verfügbar ist.",
+        ),
         "1.16" to listOf(
             "Nach jedem Update zeigt die App kurz, was neu ist.",
             "Alle Änderungen stehen jetzt im Changelog.",
