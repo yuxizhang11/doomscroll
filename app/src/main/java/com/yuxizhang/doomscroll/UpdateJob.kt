@@ -43,7 +43,8 @@ class UpdateJob : JobService() {
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .setPersisted(true)
                 .build()
-            scheduler.schedule(job)
+            // Never let the update check take the blocker down with it.
+            runCatching { scheduler.schedule(job) }
         }
 
         /** Shows the notification unless this version was already announced. */
