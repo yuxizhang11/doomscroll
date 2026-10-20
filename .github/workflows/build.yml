@@ -53,3 +53,13 @@ jobs:
           else
             gh release create "$tag" "$apk" --target "$GITHUB_SHA" --title "Doomscroll Blocker $tag" --notes-file notes.md
           fi
+      # Keeps the notes of every release in line with CHANGELOG.md, older ones included.
+      - name: Sync release notes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for v in $(sed -n 's/^## //p' CHANGELOG.md); do
+            awk -v v="## $v" '$0==v{on=1;next} /^## /{on=0} on' CHANGELOG.md > "notes-$v.md"
+            gh release edit "v$v" --notes-file "notes-$v.md" >/dev/null 2>&1 || true
+          done
