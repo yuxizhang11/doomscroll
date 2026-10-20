@@ -33,6 +33,11 @@ class Store private constructor(context: Context) {
         get() = prefs.getBoolean(KEY_SETUP_DONE, false)
         set(value) = prefs.edit().putBoolean(KEY_SETUP_DONE, value).apply()
 
+    /** The version whose "what's new" popup was last shown. */
+    var lastSeenVersion: String?
+        get() = prefs.getString(KEY_LAST_SEEN_VERSION, null)
+        set(value) = prefs.edit().putString(KEY_LAST_SEEN_VERSION, value).apply()
+
     /** The newest version a notification was already shown for. */
     var notifiedVersion: String?
         get() = prefs.getString(KEY_NOTIFIED_VERSION, null)
@@ -214,6 +219,7 @@ class Store private constructor(context: Context) {
         private const val KEY_PER_APP = "per_app_mode"
         private const val KEY_SETUP_DONE = "setup_done"
         private const val KEY_NOTIFIED_VERSION = "notified_version"
+        private const val KEY_LAST_SEEN_VERSION = "last_seen_version"
         private const val KEY_GLOBAL_LIMIT = "global_limit"
         private const val KEY_DAY = "day"
         private const val KEY_ADULT = "adult_filter"

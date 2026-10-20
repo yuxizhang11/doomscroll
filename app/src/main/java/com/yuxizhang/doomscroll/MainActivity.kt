@@ -2,6 +2,7 @@ package com.yuxizhang.doomscroll
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.TimePickerDialog
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
@@ -73,7 +74,31 @@ class MainActivity : Activity() {
         render()
         if (!updateChecked) checkForUpdate()
         UpdateJob.schedule(this)
-        askForNotifications()
+        if (!showWhatsNew()) askForNotifications()
+    }
+
+    /** After an update, shows once what changed since the version you had. True if shown. */
+    private fun showWhatsNew(): Boolean {
+        val current = Updater.currentVersion(this)
+        val seen = store.lastSeenVersion
+        if (seen == current) return false
+        store.lastSeenVersion = current
+        val news = Changelog.since(seen, current)
+        if (news.isEmpty()) return false
+        showChangelog("Neu in Version $current", news)
+        return true
+    }
+
+    private fun showChangelog(title: String, entries: List<Pair<String, List<String>>>) {
+        val text = entries.joinToString("\n\n") { (version, items) ->
+            val lines = items.joinToString("\n") { "• $it" }
+            if (entries.size == 1) lines else "Version $version\n$lines"
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(text)
+            .setPositiveButton("Super", null)
+            .show()
     }
 
     private fun askForNotifications() {
@@ -172,6 +197,8 @@ class MainActivity : Activity() {
     private fun finishSetup() {
         apply(PendingSettings(perAppMode, globalLimit, enabled.toMap(), limits.toMap(), warnMinutes, quietEnabled, quietStart, quietEnd))
         store.setupDone = true
+        // A fresh start needs no "what's new".
+        store.lastSeenVersion = Updater.currentVersion(this)
         setupStep = 0
         loadDraft()
         render()
@@ -537,6 +564,7 @@ class MainActivity : Activity() {
                 refreshUpdateCard()
             })
         }
+        card.addView(ui.secondaryButton("Alle Änderungen") { showChangelog("Changelog", Changelog.entries) })
         return card
     }
 

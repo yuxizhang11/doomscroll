@@ -46,8 +46,10 @@ jobs:
           tag="v$version"
           apk="doomscroll-blocker-$tag.apk"
           cp app/build/outputs/apk/release/app-release.apk "$apk"
+          # Release notes are this version's section of CHANGELOG.md.
+          awk -v v="## $version" '$0==v{on=1;next} /^## /{on=0} on' CHANGELOG.md > notes.md
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$apk" --clobber
           else
-            gh release create "$tag" "$apk" --target "$GITHUB_SHA" --title "Doomscroll Blocker $tag" --generate-notes
+            gh release create "$tag" "$apk" --target "$GITHUB_SHA" --title "Doomscroll Blocker $tag" --notes-file notes.md
           fi

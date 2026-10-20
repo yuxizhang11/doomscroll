@@ -11,8 +11,8 @@ android {
         applicationId = "com.yuxizhang.doomscroll"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.15"
+        versionCode = 17
+        versionName = "1.16"
     }
 
     // Release builds are signed with your own fixed key when CI provides it (GitHub secrets
