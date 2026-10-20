@@ -95,10 +95,10 @@ class Ui(private val context: Context) {
 
     fun card(vararg children: View, color: Int = surface): LinearLayout = column(*children).apply {
         background = rounded(color, 20f)
-        setPadding(dp(18f), dp(16f), dp(18f), dp(18f))
+        setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { bottomMargin = dp(14f) }
+        ).apply { bottomMargin = dp(10f) }
     }
 
     fun title(text: String) = label(text, 30f, textColor, bold = true)
