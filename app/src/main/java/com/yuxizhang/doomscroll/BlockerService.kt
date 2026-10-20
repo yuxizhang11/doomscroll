@@ -37,6 +37,8 @@ class BlockerService : AccessibilityService() {
     private var activeApp: TargetApp? = null
     private var sessionStart = 0L
     private var lastBlockAt = 0L
+    private var lastApp: TargetApp? = null
+    private var lastSessionEnd = 0L
     private var overlay: View? = null
 
     private var lastScreenCheck = 0L
@@ -81,6 +83,7 @@ class BlockerService : AccessibilityService() {
 
     override fun onServiceConnected() {
         store = Store.get(this)
+        UpdateJob.schedule(this)
         val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(screenOff, filter, Context.RECEIVER_EXPORTED)
@@ -208,8 +211,14 @@ class BlockerService : AccessibilityService() {
             block(app)
             return
         }
+        val now = SystemClock.elapsedRealtime()
+        // Show the time left when you open short videos, not on every quick flicker between screens.
+        if (remaining != null && (app != lastApp || now - lastSessionEnd > REMINDER_GAP_MS)) {
+            val minutes = (remaining + Store.MINUTE - 1) / Store.MINUTE
+            showOverlay(if (minutes == 1L) "Noch 1 Minute" else "Noch $minutes Minuten", small = true)
+        }
         activeApp = app
-        sessionStart = SystemClock.elapsedRealtime()
+        sessionStart = now
         handler.postDelayed(poll, POLL_MS)
         if (remaining != null) {
             handler.postDelayed(limitReached, remaining)
@@ -222,6 +231,10 @@ class BlockerService : AccessibilityService() {
     }
 
     private fun endSession() {
+        if (activeApp != null) {
+            lastApp = activeApp
+            lastSessionEnd = SystemClock.elapsedRealtime()
+        }
         flushUsage()
         activeApp = null
         handler.removeCallbacks(poll)
@@ -261,17 +274,18 @@ class BlockerService : AccessibilityService() {
         }, RETRY_MS)
     }
 
-    private fun showOverlay(message: String) {
+    /** A big message in the middle, or with [small] a short hint near the top. */
+    private fun showOverlay(message: String, small: Boolean = false) {
         removeOverlay()
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val dp = { v: Float -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics) }
         val view = TextView(this).apply {
             text = message
             setTextColor(0xFFFFFFFF.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, if (small) 16f else 22f)
             gravity = Gravity.CENTER
-            val pad = dp(24f).toInt()
-            setPadding(pad, pad, pad, pad)
+            val pad = dp(if (small) 14f else 24f).toInt()
+            setPadding(pad * 3 / 2, pad, pad * 3 / 2, pad)
             background = GradientDrawable().apply {
                 cornerRadius = dp(20f)
                 setColor(0xEE222222.toInt())
@@ -283,7 +297,14 @@ class BlockerService : AccessibilityService() {
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSLUCENT,
-        ).apply { gravity = Gravity.CENTER }
+        ).apply {
+            if (small) {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                y = dp(72f).toInt()
+            } else {
+                gravity = Gravity.CENTER
+            }
+        }
         runCatching {
             wm.addView(view, params)
             overlay = view
@@ -305,6 +326,7 @@ class BlockerService : AccessibilityService() {
         private const val POLL_MS = 5_000L
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L
+        private const val REMINDER_GAP_MS = 30_000L
         private const val OVERLAY_COOLDOWN_MS = 4_000L
     }
 }

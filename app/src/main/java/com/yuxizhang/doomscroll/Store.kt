@@ -33,6 +33,11 @@ class Store private constructor(context: Context) {
         get() = prefs.getBoolean(KEY_SETUP_DONE, false)
         set(value) = prefs.edit().putBoolean(KEY_SETUP_DONE, value).apply()
 
+    /** The newest version a notification was already shown for. */
+    var notifiedVersion: String?
+        get() = prefs.getString(KEY_NOTIFIED_VERSION, null)
+        set(value) = prefs.edit().putString(KEY_NOTIFIED_VERSION, value).apply()
+
     /** Whether [app] is one of your apps: only these are counted, blocked and shown. */
     fun isEnabled(app: TargetApp): Boolean = prefs.getBoolean("enabled_${app.name}", true)
 
@@ -208,6 +213,7 @@ class Store private constructor(context: Context) {
         }
         private const val KEY_PER_APP = "per_app_mode"
         private const val KEY_SETUP_DONE = "setup_done"
+        private const val KEY_NOTIFIED_VERSION = "notified_version"
         private const val KEY_GLOBAL_LIMIT = "global_limit"
         private const val KEY_DAY = "day"
         private const val KEY_ADULT = "adult_filter"

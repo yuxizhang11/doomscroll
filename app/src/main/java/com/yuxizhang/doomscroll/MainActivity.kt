@@ -1,11 +1,14 @@
 package com.yuxizhang.doomscroll
 
+import android.Manifest
 import android.app.Activity
 import android.app.TimePickerDialog
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputFilter
@@ -14,6 +17,7 @@ import android.text.TextWatcher
 import android.text.format.DateFormat
 import android.view.Gravity
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.Toast
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -47,10 +51,13 @@ class MainActivity : Activity() {
     private var updateStatus = "Suche nach Updates …"
     private var updateChecked = false
     private var installing = false
-    private var updateHolder: android.widget.LinearLayout? = null
+    private var updateHolder: LinearLayout? = null
+
+    /** Keys of the folded sections that are open. */
+    private val openSections = mutableSetOf<String>()
 
     /** Holds the limits card so adding or removing an app redraws only that card. */
-    private var limitsHolder: android.widget.LinearLayout? = null
+    private var limitsHolder: LinearLayout? = null
 
     override fun onResume() {
         super.onResume()
@@ -65,6 +72,16 @@ class MainActivity : Activity() {
         loadDraft()
         render()
         if (!updateChecked) checkForUpdate()
+        UpdateJob.schedule(this)
+        askForNotifications()
+    }
+
+    private fun askForNotifications() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || askedForNotifications) return
+        askedForNotifications = true
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+        }
     }
 
     private fun checkForUpdate() {
@@ -169,6 +186,8 @@ class MainActivity : Activity() {
                 REQUEST_SETTINGS -> pending?.let { apply(it) }
                 REQUEST_ADULT_OFF -> store.adultFilterEnabled = false
                 REQUEST_APP_SETTINGS -> openAppSettings()
+                // onResume, which runs next, starts the setup again.
+                REQUEST_SETUP -> store.setupDone = false
             }
         }
         pending = null
@@ -190,31 +209,66 @@ class MainActivity : Activity() {
     private fun render() {
         setContentView(
             ui.page(
-                ui.title("Doomscroll Blocker"),
-                ui.subtitle("Weniger scrollen, mehr leben."),
-                statusCard(),
-                todayCard(),
-                weekCard(),
-                ui.column(limitsCard()).also { limitsHolder = it },
-                quietCard(),
-                adultCard(),
-                protectionCard(),
-                unlockCard(),
-                ui.column(updateCard()).also { updateHolder = it },
+                *listOfNotNull(
+                    ui.row(
+                        ui.label("Doomscroll Blocker", 24f, ui.textColor, bold = true),
+                        if (isServiceEnabled()) ui.pill("AN", ui.successSoft, ui.success) else ui.pill("AUS", ui.surface, ui.danger),
+                    ).apply { setPadding(0, 0, 0, ui.dp(14f)) },
+                    if (isServiceEnabled()) null else statusCard(),
+                    todayCard(),
+                    section("week", weekCard()),
+                    ui.column(limitsSection()).also { limitsHolder = it },
+                    section("quiet", quietCard(), if (store.quietEnabled) "${clock(store.quietStart)}–${clock(store.quietEnd)}" else null),
+                    section("adult", adultCard()),
+                    section("protection", protectionCard()),
+                    section("unlock", unlockCard()),
+                    ui.column(updateSection()).also { updateHolder = it },
+                ).toTypedArray()
             )
         )
     }
 
-    private fun statusCard(): View {
-        if (isServiceEnabled()) {
-            return ui.card(
-                ui.row(ui.cardTitle("Blocker ist aktiv"), ui.pill("AN", ui.successSoft, ui.success)),
-                ui.body("Läuft sparsam im Hintergrund und wird nur in deinen Apps, Browsern und den Einstellungen wach."),
-                appSettingsButton(),
-            )
+    /**
+     * Folds [card] to its first line (title, plus [summary] if given); tapping the line opens it.
+     * Which sections are open survives redraws while the screen is open.
+     */
+    private fun section(key: String, card: LinearLayout, summary: String? = null): View {
+        val header = card.getChildAt(0)
+        card.removeViewAt(0)
+        val headRow = (header as? LinearLayout)?.takeIf { it.orientation == LinearLayout.HORIZONTAL } ?: ui.row(header)
+        val chevron = ui.label("", 18f, ui.muted).apply { setPadding(ui.dp(10f), 0, 0, 0) }
+        summary?.let { headRow.addView(ui.label(it, 13f, ui.muted).apply { setPadding(ui.dp(8f), 0, 0, 0) }, headRow.childCount) }
+        headRow.addView(chevron)
+        fun show() {
+            val isOpen = key in openSections
+            chevron.text = if (isOpen) "▴" else "▾"
+            for (i in 1 until card.childCount) card.getChildAt(i).visibility = if (isOpen) View.VISIBLE else View.GONE
         }
+        headRow.isClickable = true
+        headRow.setOnClickListener {
+            if (!openSections.remove(key)) openSections.add(key)
+            show()
+        }
+        card.addView(headRow, 0)
+        show()
+        return card
+    }
+
+    private fun limitsSection(): View = section(
+        "limits", limitsCard(),
+        if (store.perAppMode) "pro App" else "${store.globalLimitMinutes} min",
+    )
+
+    private fun updateSection(): View {
+        // A waiting update opens its section by itself.
+        if (update != null) openSections.add("updates")
+        return section("updates", updateCard(), update?.let { "neu: ${it.version}" } ?: "v${Updater.currentVersion(this)}")
+    }
+
+    /** Only shown while the blocker is off; when it runs, the header pill says so. */
+    private fun statusCard(): View {
         return ui.card(
-            ui.row(ui.cardTitle("Blocker ist aus"), ui.pill("AUS", ui.surface, ui.danger)),
+            ui.cardTitle("Blocker ist aus"),
             ui.body("Schalte „Doomscroll Blocker“ in den Bedienungshilfen ein, damit gezählt und gesperrt wird.", ui.textColor),
             ui.primaryButton("Bedienungshilfen öffnen") {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -253,7 +307,7 @@ class MainActivity : Activity() {
     }
 
     /** Short-video minutes for the last seven days, today on the right. */
-    private fun weekCard(): View {
+    private fun weekCard(): LinearLayout {
         val today = LocalDate.now()
         val days = (6L downTo 0L).map { today.minusDays(it) }
         val values = days.map { minutes(store.dayTotalMs(it)).toInt() }
@@ -266,7 +320,7 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun quietCard(): View {
+    private fun quietCard(): LinearLayout {
         fun timeButton(prefix: String, minute: () -> Int, set: (Int) -> Unit): View {
             lateinit var button: android.widget.TextView
             button = ui.secondaryButton("$prefix ${clock(minute())}") {
@@ -289,7 +343,7 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun limitsCard(): View {
+    private fun limitsCard(): LinearLayout {
         val globalRow = stepper("Limit für alle zusammen", globalLimit) { globalLimit = it }
         val mine = TargetApp.entries.filter { enabled.getValue(it) }
         val appSteppers = mine.associateWith { app ->
@@ -336,6 +390,11 @@ class MainActivity : Activity() {
         card.addView(stepper("Minuten vor Ablauf", warnMinutes) { warnMinutes = it })
         card.addView(ui.body("0 schaltet sie aus. Ist das Limit nicht länger als die Vorwarnung, kommt keine."))
         card.addView(ui.primaryButton("Speichern") { save() })
+        card.addView(ui.secondaryButton("Einführung wiederholen") {
+            // Starting over can loosen everything at once, so it needs the sentence.
+            @Suppress("DEPRECATION")
+            startActivityForResult(UnlockActivity.intent(this, UnlockActivity.SCOPE_SETTINGS), REQUEST_SETUP)
+        })
         showMode()
         return card
     }
@@ -345,7 +404,7 @@ class MainActivity : Activity() {
         enabled[app] = chosen
         limitsHolder?.apply {
             removeAllViews()
-            addView(limitsCard())
+            addView(limitsSection())
         }
     }
 
@@ -382,7 +441,7 @@ class MainActivity : Activity() {
         ).apply { setPadding(0, ui.dp(6f), 0, ui.dp(6f)) }
     }
 
-    private fun adultCard(): View {
+    private fun adultCard(): LinearLayout {
         val on = store.adultFilterEnabled
         val unlocked = store.isAdultUnlockedToday()
         val toggle = ui.switch(on).apply {
@@ -427,7 +486,7 @@ class MainActivity : Activity() {
         startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
     }
 
-    private fun protectionCard(): View {
+    private fun protectionCard(): LinearLayout {
         val card = ui.card(
             ui.cardTitle("Schutz vor Abschalten"),
             ui.body("Sperrt die Seiten in den Einstellungen, über die man den Blocker deinstallieren oder in den Bedienungshilfen ausschalten könnte. Aufheben geht nur hier mit 20 Zeichen, dann hast du ${UnlockActivity.PROTECTION_MINUTES} Minuten Zeit."),
@@ -460,10 +519,11 @@ class MainActivity : Activity() {
                 )
             })
         }
+        card.addView(appSettingsButton())
         return card
     }
 
-    private fun updateCard(): View {
+    private fun updateCard(): LinearLayout {
         val card = ui.card(
             ui.cardTitle("Updates"),
             ui.body("Installiert: Version ${Updater.currentVersion(this)}. $updateStatus"),
@@ -500,11 +560,11 @@ class MainActivity : Activity() {
     private fun refreshUpdateCard() {
         updateHolder?.apply {
             removeAllViews()
-            addView(updateCard())
+            addView(updateSection())
         }
     }
 
-    private fun unlockCard(): View {
+    private fun unlockCard(): LinearLayout {
         val card = ui.card(
             ui.cardTitle("Sperre für heute aufheben"),
             ui.body("Dafür tippst du einen langen Satz ab. Morgen gilt die Sperre wieder."),
@@ -598,6 +658,11 @@ class MainActivity : Activity() {
         private const val REQUEST_SETTINGS = 1
         private const val REQUEST_ADULT_OFF = 2
         private const val REQUEST_APP_SETTINGS = 3
+        private const val REQUEST_SETUP = 4
+        private const val REQUEST_NOTIFICATIONS = 5
+
+        /** Ask for the notification permission once per app start, not on every return. */
+        private var askedForNotifications = false
         private const val STEP_MINUTES = 5
         private const val MAX_MINUTES = 600
     }
