@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.18" to listOf(
+            "Die Restzeit erscheint jetzt jedes Mal, wenn du Reels oder Shorts öffnest.",
+        ),
         "1.17" to listOf(
             "Popup in der App, sobald ein Update verfügbar ist.",
         ),
