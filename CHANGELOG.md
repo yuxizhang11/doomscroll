@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.18
+
+- Die Restzeit erscheint jetzt jedes Mal, wenn du Reels oder Shorts öffnest.
+
 ## 1.17
 
 - Popup in der App, sobald ein Update verfügbar ist.

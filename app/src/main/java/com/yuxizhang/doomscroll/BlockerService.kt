@@ -212,7 +212,8 @@ class BlockerService : AccessibilityService() {
             return
         }
         val now = SystemClock.elapsedRealtime()
-        // Show the time left when you open short videos, not on every quick flicker between screens.
+        // Show the time left every time counting starts again; only a split-second gap
+        // (the screen briefly not recognised while scrolling) doesn't count as leaving.
         if (remaining != null && (app != lastApp || now - lastSessionEnd > REMINDER_GAP_MS)) {
             val minutes = (remaining + Store.MINUTE - 1) / Store.MINUTE
             showOverlay(if (minutes == 1L) "Noch 1 Minute" else "Noch $minutes Minuten", small = true)
@@ -326,7 +327,7 @@ class BlockerService : AccessibilityService() {
         private const val POLL_MS = 5_000L
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L
-        private const val REMINDER_GAP_MS = 30_000L
+        private const val REMINDER_GAP_MS = 2_000L
         private const val OVERLAY_COOLDOWN_MS = 4_000L
     }
 }
