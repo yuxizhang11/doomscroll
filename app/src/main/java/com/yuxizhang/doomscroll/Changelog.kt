@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.19" to listOf(
+            "Die Restzeit erscheint schneller und auch dann jedes Mal, wenn du Shorts oder Reels kurz hintereinander öffnest und schließt.",
+        ),
         "1.18" to listOf(
             "Die Restzeit erscheint jetzt jedes Mal, wenn du Reels oder Shorts öffnest.",
         ),

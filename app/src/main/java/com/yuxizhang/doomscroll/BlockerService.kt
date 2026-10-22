@@ -25,9 +25,10 @@ import android.widget.TextView
  * browsers for pornographic sites and short videos, and the system screens that could switch it off.
  *
  * Efficiency: the system only wakes this service for events from the watched apps
- * (see accessibility_config.xml). While a short video screen is open it re-checks every
- * few seconds to notice when you leave, and a single timer fires exactly when the daily
- * limit runs out. Outside those apps nothing runs at all.
+ * (see accessibility_config.xml). While a short video screen is open it glances at which app
+ * is in front every second and re-checks the screen every few seconds to notice when you
+ * leave, and a single timer fires exactly when the daily limit runs out. Outside those apps
+ * nothing runs at all.
  */
 class BlockerService : AccessibilityService() {
 
@@ -54,9 +55,15 @@ class BlockerService : AccessibilityService() {
     private val checkGuard = Runnable { onSettingsMaybeChanged() }
     private val hideOverlay = Runnable { removeOverlay() }
 
+    private var pollTicks = 0
     private val poll = object : Runnable {
         override fun run() {
-            onScreenMaybeChanged()
+            // The home screen and other apps send no events (only the watched apps do), so
+            // a cheap look at which app is in front is what notices you left within a second.
+            when {
+                !isActiveAppInFront() -> endSession(leftApp = true)
+                ++pollTicks % FULL_CHECK_TICKS == 0 -> onScreenMaybeChanged()
+            }
             if (activeApp != null) handler.postDelayed(this, POLL_MS)
         }
     }
@@ -78,7 +85,7 @@ class BlockerService : AccessibilityService() {
     }
 
     private val screenOff = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = endSession()
+        override fun onReceive(context: Context, intent: Intent) = endSession(leftApp = true)
     }
 
     override fun onServiceConnected() {
@@ -109,9 +116,11 @@ class BlockerService : AccessibilityService() {
         }
         // Events arrive in bursts while videos play; look at the screen once they settle,
         // but at least once a second, since a playing video may never let them settle.
+        // Opening an app or screen is looked at right away, so the time left shows without delay.
         handler.removeCallbacks(checkScreen)
         val waited = SystemClock.elapsedRealtime() - lastScreenCheck
-        handler.postDelayed(checkScreen, if (waited > SCREEN_MAX_WAIT_MS) 0 else DEBOUNCE_MS)
+        val opened = event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        handler.postDelayed(checkScreen, if (opened || waited > SCREEN_MAX_WAIT_MS) 0 else DEBOUNCE_MS)
     }
 
     override fun onInterrupt() = Unit
@@ -195,6 +204,12 @@ class BlockerService : AccessibilityService() {
         }
     }
 
+    /** Only reads the package of the front window, much cheaper than [detectShortForm]. */
+    private fun isActiveAppInFront(): Boolean {
+        val pkg = rootInActiveWindow?.packageName ?: return true
+        return TargetApp.fromPackage(pkg) == activeApp || AdultFilter.isBrowser(pkg)
+    }
+
     private fun detectShortForm(): TargetApp? {
         val root = rootInActiveWindow ?: return null
         TargetApp.fromPackage(root.packageName)?.let { app ->
@@ -213,13 +228,14 @@ class BlockerService : AccessibilityService() {
         }
         val now = SystemClock.elapsedRealtime()
         // Show the time left every time counting starts again; only a split-second gap
-        // (the screen briefly not recognised while scrolling) doesn't count as leaving.
+        // inside the app (the screen briefly not recognised while scrolling) doesn't count.
         if (remaining != null && (app != lastApp || now - lastSessionEnd > REMINDER_GAP_MS)) {
             val minutes = (remaining + Store.MINUTE - 1) / Store.MINUTE
             showOverlay(if (minutes == 1L) "Noch 1 Minute" else "Noch $minutes Minuten", small = true)
         }
         activeApp = app
         sessionStart = now
+        pollTicks = 0
         handler.postDelayed(poll, POLL_MS)
         if (remaining != null) {
             handler.postDelayed(limitReached, remaining)
@@ -231,9 +247,10 @@ class BlockerService : AccessibilityService() {
         }
     }
 
-    private fun endSession() {
+    /** With [leftApp] the next visit always shows the time left, however soon it comes. */
+    private fun endSession(leftApp: Boolean = false) {
         if (activeApp != null) {
-            lastApp = activeApp
+            lastApp = if (leftApp) null else activeApp
             lastSessionEnd = SystemClock.elapsedRealtime()
         }
         flushUsage()
@@ -321,13 +338,14 @@ class BlockerService : AccessibilityService() {
     }
 
     companion object {
-        private const val DEBOUNCE_MS = 250L
+        private const val DEBOUNCE_MS = 150L
         private const val SCREEN_MAX_WAIT_MS = 1_000L
         private const val BROWSER_CHECK_MS = 500L
-        private const val POLL_MS = 5_000L
+        private const val POLL_MS = 1_000L
+        private const val FULL_CHECK_TICKS = 5
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L
-        private const val REMINDER_GAP_MS = 2_000L
+        private const val REMINDER_GAP_MS = 1_000L
         private const val OVERLAY_COOLDOWN_MS = 4_000L
     }
 }

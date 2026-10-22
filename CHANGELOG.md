@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.19
+
+- Die Restzeit erscheint schneller und auch dann jedes Mal, wenn du Shorts oder Reels kurz hintereinander öffnest und schließt.
+
 ## 1.18
 
 - Die Restzeit erscheint jetzt jedes Mal, wenn du Reels oder Shorts öffnest.
