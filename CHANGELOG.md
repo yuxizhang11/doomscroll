@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.22
+
+- Datensicherung: Einstellungen und Verlauf exportieren und auf einem anderen Handy importieren.
+
 ## 1.21
 
 - Neuer Bereich Hinweise: Restzeit, Update-Benachrichtigung, Update-Popup und „Was ist neu“ einzeln abschaltbar.

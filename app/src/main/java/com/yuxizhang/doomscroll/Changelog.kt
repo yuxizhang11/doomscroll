@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.22" to listOf(
+            "Datensicherung: Einstellungen und Verlauf exportieren und auf einem anderen Handy importieren.",
+        ),
         "1.21" to listOf(
             "Neuer Bereich Hinweise: Restzeit, Update-Benachrichtigung, Update-Popup und „Was ist neu“ einzeln abschaltbar.",
         ),

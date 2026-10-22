@@ -3,6 +3,17 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.22
+
+- [ ] Update von 1.21: alle Einstellungen und der Verlauf sind noch da.
+- [ ] Datensicherung → Exportieren: Datei wird gespeichert, „Gesichert“ erscheint.
+- [ ] Limit verkleinern, dann Sicherung importieren: Satz muss abgetippt werden, danach gilt das alte Limit.
+- [ ] Limit vergrößern, dann Sicherung importieren: kein Satz nötig, „Gespeichert“ erscheint.
+- [ ] Porno-Blocker aus, Sicherung mit „an“ importieren: er ist wieder an. Umgekehrt bleibt er an.
+- [ ] Verlauf (Letzte 7 Tage) nach Import auf neuem Handy sichtbar.
+- [ ] Fremde Datei (z. B. Foto) importieren: Meldung, nichts ändert sich.
+- [ ] Offline: Export und Import klappen ohne Internet.
+
 ## 1.21
 
 - [ ] Hinweise: alle vier Schalter stehen nach dem Update auf an.
