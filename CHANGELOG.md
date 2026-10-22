@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.20
+
+- Schriftgröße in der App einstellbar (Darstellung).
+- Größere Tippflächen und besserer Kontrast, Knöpfe für TalkBack beschriftet.
+
 ## 1.19
 
 - Die Restzeit erscheint schneller und auch dann jedes Mal, wenn du Shorts oder Reels kurz hintereinander öffnest und schließt.

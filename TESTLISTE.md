@@ -3,6 +3,14 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.20
+
+- [ ] Darstellung → „Groß“ und „Sehr groß“: alle Texte, Knöpfe und Hinweise (Restzeit, „Genug für heute!“) werden größer, nichts wird abgeschnitten.
+- [ ] Darstellung bleibt nach App-Neustart erhalten.
+- [ ] Hell- und Dunkelmodus: Knöpfe, „AN“/„AUS“ und alle Texte gut lesbar.
+- [ ] −/+ und ✕ lassen sich leicht treffen; TalkBack liest z. B. „Tageslimit Instagram: 5 Minuten mehr“ vor.
+- [ ] Eingeklappte Bereiche öffnen sich beim Antippen der ganzen Kopfzeile.
+
 ## 1.19
 
 - [ ] Shorts öffnen: Restzeit erscheint sofort.

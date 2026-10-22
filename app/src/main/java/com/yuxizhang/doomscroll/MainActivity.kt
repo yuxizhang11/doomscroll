@@ -264,6 +264,7 @@ class MainActivity : Activity() {
                     section("adult", adultCard()),
                     section("protection", protectionCard()),
                     section("unlock", unlockCard()),
+                    section("display", displayCard(), TEXT_SIZES.firstOrNull { it.second == store.textScalePercent }?.first),
                     ui.column(updateSection()).also { updateHolder = it },
                 ).toTypedArray()
             )
@@ -286,7 +287,9 @@ class MainActivity : Activity() {
             chevron.text = if (isOpen) "▴" else "▾"
             for (i in 1 until card.childCount) card.getChildAt(i).visibility = if (isOpen) View.VISIBLE else View.GONE
         }
+        headRow.minimumHeight = ui.dp(48f)
         headRow.isClickable = true
+        headRow.isFocusable = true
         headRow.setOnClickListener {
             if (!openSections.remove(key)) openSections.add(key)
             show()
@@ -389,7 +392,7 @@ class MainActivity : Activity() {
         val globalRow = stepper("Limit für alle zusammen", globalLimit) { globalLimit = it }
         val mine = TargetApp.entries.filter { enabled.getValue(it) }
         val appSteppers = mine.associateWith { app ->
-            stepper("Tageslimit", limits.getValue(app)) { limits[app] = it }
+            stepper("Tageslimit", limits.getValue(app), "Tageslimit ${app.label}") { limits[app] = it }
         }
         fun showMode() {
             globalRow.visibility = if (perAppMode) View.GONE else View.VISIBLE
@@ -411,7 +414,7 @@ class MainActivity : Activity() {
             card.addView(ui.spacer(10f))
             card.addView(ui.row(
                 ui.label(app.label, 16f, ui.textColor, bold = true),
-                ui.roundButton("✕") { setAppChosen(app, false) },
+                ui.roundButton("✕", "${app.label} entfernen") { setAppChosen(app, false) },
             ))
             card.addView(appSteppers.getValue(app))
         }
@@ -451,7 +454,7 @@ class MainActivity : Activity() {
     }
 
     /** "Label   −  [15] min  +": type any number of minutes, or step by 5 with the buttons. */
-    private fun stepper(label: String, initial: Int, onChange: (Int) -> Unit): View {
+    private fun stepper(label: String, initial: Int, spoken: String = label, onChange: (Int) -> Unit): View {
         val field = ui.input("0").apply {
             inputType = InputType.TYPE_CLASS_NUMBER
             filters = arrayOf(InputFilter.LengthFilter(3))
@@ -474,13 +477,27 @@ class MainActivity : Activity() {
         }
         return ui.row(
             ui.body(label),
-            ui.roundButton("−") { change(-STEP_MINUTES) },
+            ui.roundButton("−", "$spoken: $STEP_MINUTES Minuten weniger") { change(-STEP_MINUTES) },
             ui.spacer(0f).apply { layoutParams = android.widget.LinearLayout.LayoutParams(ui.dp(8f), 1) },
             field,
             ui.label(" min", 16f, ui.textColor),
             ui.spacer(0f).apply { layoutParams = android.widget.LinearLayout.LayoutParams(ui.dp(8f), 1) },
-            ui.roundButton("+") { change(STEP_MINUTES) },
+            ui.roundButton("+", "$spoken: $STEP_MINUTES Minuten mehr") { change(STEP_MINUTES) },
         ).apply { setPadding(0, ui.dp(6f), 0, ui.dp(6f)) }
+    }
+
+    /** Text size inside this app and its popups, on top of the phone's own font size. */
+    private fun displayCard(): LinearLayout {
+        val selected = TEXT_SIZES.indexOfFirst { it.second == store.textScalePercent }.coerceAtLeast(0)
+        return ui.card(
+            ui.cardTitle("Darstellung"),
+            ui.body("Schriftgröße in dieser App und in den Hinweisen. Die Schriftgröße des Handys gilt zusätzlich."),
+            ui.segmented(TEXT_SIZES.map { it.first }, selected) { i ->
+                store.textScalePercent = TEXT_SIZES[i].second
+                ui = Ui(this)
+                render()
+            },
+        )
     }
 
     private fun adultCard(): LinearLayout {
@@ -711,5 +728,6 @@ class MainActivity : Activity() {
         private var askedForNotifications = false
         private const val STEP_MINUTES = 5
         private const val MAX_MINUTES = 600
+        private val TEXT_SIZES = listOf("Normal" to 100, "Groß" to 115, "Sehr groß" to 130)
     }
 }
