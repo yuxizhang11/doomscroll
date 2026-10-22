@@ -224,6 +224,16 @@ class MainActivity : Activity() {
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        // Android may have restarted the app while the file picker was open.
+        store = Store.get(this)
+        if (!::ui.isInitialized) ui = Ui(this)
+        val uri = data?.data
+        if (requestCode == REQUEST_EXPORT || requestCode == REQUEST_IMPORT) {
+            if (resultCode == RESULT_OK && uri != null) {
+                if (requestCode == REQUEST_EXPORT) exportBackup(uri) else importBackup(uri)
+            }
+            return
+        }
         if (resultCode == RESULT_OK) {
             when (requestCode) {
                 REQUEST_SETTINGS -> pending?.let { apply(it) }
@@ -234,6 +244,51 @@ class MainActivity : Activity() {
             }
         }
         pending = null
+    }
+
+    private fun exportBackup(uri: Uri) {
+        val ok = runCatching {
+            contentResolver.openOutputStream(uri, "wt")!!.use {
+                it.write(Backup.write(store, Updater.currentVersion(this)).toByteArray())
+            }
+        }.isSuccess
+        Toast.makeText(this, if (ok) "Gesichert" else "Konnte die Datei nicht schreiben", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Restores a backup; limits that loosen go through the sentence like any other change. */
+    private fun importBackup(uri: Uri) {
+        val values = runCatching {
+            // A backup is a few KB; a big file picked by mistake is not read into memory.
+            contentResolver.openInputStream(uri)!!.use { input ->
+                val out = java.io.ByteArrayOutputStream()
+                val buf = ByteArray(8192)
+                while (out.size() < MAX_BACKUP_BYTES) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                }
+                out.toByteArray().decodeToString()
+            }
+        }.fold({ Backup.read(it) }, { Result.failure(IllegalStateException("Konnte die Datei nicht lesen.")) })
+            .getOrElse {
+                Toast.makeText(this, it.message, Toast.LENGTH_LONG).show()
+                return
+            }
+        store.restoreSafe(values)
+        loadDraft()
+        perAppMode = values.optBoolean("per_app_mode", perAppMode)
+        globalLimit = values.optInt("global_limit", globalLimit).coerceIn(0, MAX_MINUTES)
+        for (app in TargetApp.entries) {
+            enabled[app] = values.optBoolean("enabled_${app.name}", enabled.getValue(app))
+            limits[app] = values.optInt("limit_${app.name}", limits.getValue(app)).coerceIn(0, MAX_MINUTES)
+        }
+        // A backup without any app chosen would leave nothing to block.
+        if (TargetApp.entries.none { enabled.getValue(it) }) loadDraft()
+        warnMinutes = values.optInt("warning_minutes", warnMinutes).coerceIn(0, MAX_MINUTES)
+        quietEnabled = values.optBoolean("quiet", quietEnabled)
+        quietStart = values.optInt("quiet_start", quietStart).coerceIn(0, 24 * 60 - 1)
+        quietEnd = values.optInt("quiet_end", quietEnd).coerceIn(0, 24 * 60 - 1)
+        save()
     }
 
     private fun loadDraft() {
@@ -266,6 +321,7 @@ class MainActivity : Activity() {
                     section("protection", protectionCard()),
                     section("unlock", unlockCard()),
                     section("hints", hintsCard(), "${Hint.entries.count(store::isOn)} von ${Hint.entries.size} an"),
+                    section("backup", backupCard()),
                     section("display", displayCard(), TEXT_SIZES.firstOrNull { it.second == store.textScalePercent }?.first),
                     ui.column(updateSection()).also { updateHolder = it },
                 ).toTypedArray()
@@ -487,6 +543,31 @@ class MainActivity : Activity() {
             ui.roundButton("+", "$spoken: $STEP_MINUTES Minuten mehr") { change(STEP_MINUTES) },
         ).apply { setPadding(0, ui.dp(6f), 0, ui.dp(6f)) }
     }
+
+    private fun backupCard(): LinearLayout = ui.card(
+        ui.cardTitle("Datensicherung"),
+        ui.body("Speichert Limits, Ruhezeiten, Hinweise, Schriftgröße und den Verlauf der letzten 30 Tage in einer Datei, z. B. für ein neues Handy. Lockert der Import ein Limit, musst du den Satz abtippen. Den Porno-Blocker schaltet ein Import nur ein, nie aus."),
+        ui.secondaryButton("Exportieren") {
+            @Suppress("DEPRECATION")
+            startActivityForResult(
+                Intent(Intent.ACTION_CREATE_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("application/json")
+                    .putExtra(Intent.EXTRA_TITLE, "doomscroll-sicherung-${LocalDate.now()}.json"),
+                REQUEST_EXPORT,
+            )
+        },
+        ui.secondaryButton("Importieren") {
+            @Suppress("DEPRECATION")
+            startActivityForResult(
+                Intent(Intent.ACTION_OPEN_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("*/*")
+                    .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "application/octet-stream")),
+                REQUEST_IMPORT,
+            )
+        },
+    )
 
     /** One switch per hint or notification. */
     private fun hintsCard(): LinearLayout {
@@ -739,6 +820,9 @@ class MainActivity : Activity() {
         private const val REQUEST_APP_SETTINGS = 3
         private const val REQUEST_SETUP = 4
         private const val REQUEST_NOTIFICATIONS = 5
+        private const val REQUEST_EXPORT = 6
+        private const val REQUEST_IMPORT = 7
+        private const val MAX_BACKUP_BYTES = 1 shl 20
 
         /** The version the update popup was shown for in this app start. */
         private var offeredVersion: String? = null

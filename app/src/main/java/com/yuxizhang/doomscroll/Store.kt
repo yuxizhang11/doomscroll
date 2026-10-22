@@ -2,6 +2,7 @@ package com.yuxizhang.doomscroll
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONObject
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -22,6 +23,51 @@ class Store private constructor(context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("doomscroll", Context.MODE_PRIVATE)
+
+    init {
+        migrate()
+    }
+
+    /**
+     * Brings older saved data up to [SCHEMA], one step per version. Steps only add or
+     * rename keys and keep defaults, so an older app version can still read the file.
+     */
+    private fun migrate() {
+        val from = prefs.getInt(KEY_SCHEMA, 0)
+        if (from >= SCHEMA) return
+        // 0 → 1: nothing changes, the schema number is only stored from now on.
+        prefs.edit().putInt(KEY_SCHEMA, SCHEMA).apply()
+    }
+
+    /** Settings, hints and history for the backup; today's counters, unlocks and protection windows stay out. */
+    fun backupValues(): Map<String, Any> {
+        ensureToday()
+        return prefs.all
+            .filterKeys { it in LIMIT_KEYS || LIMIT_PREFIXES.any(it::startsWith) || isSafeKey(it) }
+            .mapNotNull { (key, value) -> value?.let { key to it } }
+            .toMap()
+    }
+
+    /**
+     * Restores the backed-up values that can never give more time: history, hints, text size,
+     * and the porn blocker only when it gets switched on. The limits are applied by the
+     * screen, which asks for the sentence when they loosen.
+     */
+    fun restoreSafe(values: JSONObject) {
+        val editor = prefs.edit()
+        for (key in values.keys()) {
+            when {
+                key.startsWith(HISTORY) -> values.optLong(key, -1).takeIf { it >= 0 }?.let { editor.putLong(key, it) }
+                key.startsWith("hint_") -> editor.putBoolean(key, values.optBoolean(key, true))
+                key == KEY_TEXT_SCALE -> editor.putInt(key, values.optInt(key, 100).coerceIn(80, 200))
+                key == KEY_ADULT -> if (values.optBoolean(key, false)) editor.putBoolean(key, true)
+            }
+        }
+        editor.apply()
+    }
+
+    private fun isSafeKey(key: String) =
+        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key == KEY_ADULT
 
     var perAppMode: Boolean
         get() = prefs.getBoolean(KEY_PER_APP, false)
@@ -241,11 +287,18 @@ class Store private constructor(context: Context) {
         private const val KEY_LAST_SEEN_VERSION = "last_seen_version"
         private const val KEY_GLOBAL_LIMIT = "global_limit"
         private const val KEY_DAY = "day"
+        /** Version of the saved data; raise it together with a step in [migrate]. */
+        const val SCHEMA = 1
+        private const val KEY_SCHEMA = "schema_version"
         private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_ADULT = "adult_filter"
         private const val KEY_ADULT_UNLOCK = "unlock_adult_filter"
         private const val KEY_PROTECTION_UNTIL = "protection_until"
         private const val KEY_ADMIN_SETUP_UNTIL = "admin_setup_until"
+
+        /** Keys of the limit settings, which only change through the screen's save. */
+        private val LIMIT_KEYS = setOf(KEY_PER_APP, KEY_GLOBAL_LIMIT, KEY_WARN, KEY_QUIET, KEY_QUIET_START, KEY_QUIET_END)
+        private val LIMIT_PREFIXES = listOf("limit_", "enabled_")
 
         @Volatile
         private var instance: Store? = null
