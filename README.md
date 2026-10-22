@@ -14,6 +14,10 @@ Android-App, die Instagram Reels, YouTube Shorts und TikTok auf ein Tageslimit b
 - Deinstallieren: Schutz in der App aufheben, dann die App normal deinstallieren. Danach ist der Blocker weg.
 - **Updates:** Release-APKs werden mit einem festen eigenen Schlüssel signiert, sobald die GitHub-Secrets `SIGNING_KEYSTORE_BASE64` und `SIGNING_PASSWORD` gesetzt sind. Dann installieren sich neue Versionen über die alte und die Einstellungen bleiben.
 
+## Testen
+
+Vor jedem Release die Punkte in [`TESTLISTE.md`](TESTLISTE.md) auf dem Handy abhaken. Jede neue Version bekommt dort einen eigenen Abschnitt.
+
 ## Installieren
 
 **Mit Android Studio:** Projekt öffnen, Handy per USB (USB-Debugging an) verbinden, ▶ Run.
