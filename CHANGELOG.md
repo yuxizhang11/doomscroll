@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.21
+
+- Neuer Bereich Hinweise: Restzeit, Update-Benachrichtigung, Update-Popup und „Was ist neu“ einzeln abschaltbar.
+
 ## 1.20
 
 - Schriftgröße in der App einstellbar (Darstellung).

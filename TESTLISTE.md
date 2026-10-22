@@ -3,6 +3,15 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.21
+
+- [ ] Hinweise: alle vier Schalter stehen nach dem Update auf an.
+- [ ] „Restzeit beim Öffnen“ aus: Shorts/Reels öffnen zeigt keine Restzeit, Sperre und Vorwarnung kommen weiter.
+- [ ] „Update-Benachrichtigung“ aus: bei neuer Version keine Meldung auf dem Handy.
+- [ ] „Update-Popup“ aus: beim Öffnen der App kein Popup, der Bereich Updates zeigt die neue Version trotzdem.
+- [ ] „Was ist neu“ aus: nach dem nächsten Update kein Popup.
+- [ ] Schalter bleiben nach Neustart des Handys erhalten.
+
 ## 1.20
 
 - [ ] Darstellung → „Groß“ und „Sehr groß“: alle Texte, Knöpfe und Hinweise (Restzeit, „Genug für heute!“) werden größer, nichts wird abgeschnitten.
