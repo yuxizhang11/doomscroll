@@ -77,7 +77,7 @@ class UnlockActivity : Activity() {
             isLongClickable = false
             customSelectionActionModeCallback = NoActions
             customInsertionActionModeCallback = NoActions
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, ui.sp(16f))
         }
 
         val confirm = ui.primaryButton("Bestätigen") {

@@ -300,7 +300,7 @@ class BlockerService : AccessibilityService() {
         val view = TextView(this).apply {
             text = message
             setTextColor(0xFFFFFFFF.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, if (small) 16f else 22f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, (if (small) 16f else 22f) * store.textScale)
             gravity = Gravity.CENTER
             val pad = dp(if (small) 14f else 24f).toInt()
             setPadding(pad * 3 / 2, pad, pad * 3 / 2, pad)

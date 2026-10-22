@@ -101,6 +101,13 @@ class Store private constructor(context: Context) {
         return prefs.getLong("$HISTORY$day", 0L)
     }
 
+    /** Text size inside the app in percent (100 = normal). */
+    var textScalePercent: Int
+        get() = prefs.getInt(KEY_TEXT_SCALE, 100)
+        set(value) = prefs.edit().putInt(KEY_TEXT_SCALE, value.coerceIn(80, 200)).apply()
+
+    val textScale: Float get() = textScalePercent / 100f
+
     /** Porn blocker for browsers; on unless switched off with the 20-character code. */
     var adultFilterEnabled: Boolean
         get() = prefs.getBoolean(KEY_ADULT, true)
@@ -222,6 +229,7 @@ class Store private constructor(context: Context) {
         private const val KEY_LAST_SEEN_VERSION = "last_seen_version"
         private const val KEY_GLOBAL_LIMIT = "global_limit"
         private const val KEY_DAY = "day"
+        private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_ADULT = "adult_filter"
         private const val KEY_ADULT_UNLOCK = "unlock_adult_filter"
         private const val KEY_PROTECTION_UNTIL = "protection_until"

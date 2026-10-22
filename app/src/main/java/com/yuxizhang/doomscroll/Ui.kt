@@ -34,14 +34,22 @@ class Ui(private val context: Context) {
     val pageColor = if (dark) 0xFF0F0F14.toInt() else 0xFFF4F4F8.toInt()
     val surface = if (dark) 0xFF1B1B24.toInt() else 0xFFFFFFFF.toInt()
     val textColor = if (dark) 0xFFF2F2F7.toInt() else 0xFF1A1A2E.toInt()
-    val muted = if (dark) 0xFF9A9AAE.toInt() else 0xFF6B6B80.toInt()
-    val accent = if (dark) 0xFF8B7CF6.toInt() else 0xFF6C5CE7.toInt()
-    val accentSoft = if (dark) 0xFF2A2547.toInt() else 0xFFECEAFD.toInt()
+    // All text/background pairs reach at least 4.5:1 contrast (WCAG AA).
+    val muted = if (dark) 0xFF9A9AAE.toInt() else 0xFF5C5C70.toInt()
+    val accent = if (dark) 0xFF9A8CF8.toInt() else 0xFF5A49D6.toInt()
+    val onAccent = if (dark) 0xFF0F0F14.toInt() else 0xFFFFFFFF.toInt()
+    val accentSoft = if (dark) 0xFF241F3D.toInt() else 0xFFECEAFD.toInt()
     val track = if (dark) 0xFF2A2A36.toInt() else 0xFFE6E6EF.toInt()
-    val danger = if (dark) 0xFFFF6B6B.toInt() else 0xFFE5484D.toInt()
+    val danger = if (dark) 0xFFFF6B6B.toInt() else 0xFFC4262C.toInt()
     val dangerSoft = if (dark) 0xFF3A1E22.toInt() else 0xFFFDECEC.toInt()
-    val success = if (dark) 0xFF4ADE80.toInt() else 0xFF2FA36B.toInt()
+    val success = if (dark) 0xFF4ADE80.toInt() else 0xFF1E7A4E.toInt()
     val successSoft = if (dark) 0xFF16301F.toInt() else 0xFFE6F6EE.toInt()
+
+    /** Text size chosen in the app on top of the phone's font size (1.0 = normal). */
+    val textScale = Store.get(context).textScale
+
+    /** [value] in sp, scaled by the app's text size setting. */
+    fun sp(value: Float): Float = value * textScale
 
     fun dp(value: Float): Int =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, context.resources.displayMetrics).toInt()
@@ -115,7 +123,7 @@ class Ui(private val context: Context) {
     fun label(text: String, sizeSp: Float, color: Int, bold: Boolean = false) = TextView(context).apply {
         this.text = text
         setTextColor(color)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(sizeSp))
         if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
     }
 
@@ -123,14 +131,15 @@ class Ui(private val context: Context) {
         layoutParams = LinearLayout.LayoutParams(1, dp(heightDp))
     }
 
-    fun primaryButton(text: String, onClick: () -> Unit) = button(text, accent, 0xFFFFFFFF.toInt(), onClick)
+    fun primaryButton(text: String, onClick: () -> Unit) = button(text, accent, onAccent, onClick)
 
     fun secondaryButton(text: String, onClick: () -> Unit) = button(text, accentSoft, accent, onClick)
 
     private fun button(text: String, fill: Int, textColor: Int, onClick: () -> Unit) = TextView(context).apply {
         this.text = text
         setTextColor(textColor)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(15f))
+        minHeight = dp(48f)
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         gravity = Gravity.CENTER
         setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
@@ -143,16 +152,18 @@ class Ui(private val context: Context) {
         ).apply { topMargin = dp(10f) }
     }
 
-    /** Round "−" / "+" button for the minute steppers. */
-    fun roundButton(text: String, onClick: () -> Unit) = TextView(context).apply {
+    /** Round "−" / "+" button for the minute steppers; [description] is read out by TalkBack. */
+    fun roundButton(text: String, description: String, onClick: () -> Unit) = TextView(context).apply {
         this.text = text
+        contentDescription = description
         setTextColor(accent)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(20f))
         gravity = Gravity.CENTER
         background = ripple(GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(accentSoft) })
         isClickable = true
+        isFocusable = true
         setOnClickListener { onClick() }
-        layoutParams = LinearLayout.LayoutParams(dp(40f), dp(40f))
+        layoutParams = LinearLayout.LayoutParams(dp(48f), dp(48f))
     }
 
     /** Small coloured label like "Aktiv" or "Heute aufgehoben". */
@@ -175,7 +186,9 @@ class Ui(private val context: Context) {
             label(option, 14f, textColor, bold = true).apply {
                 gravity = Gravity.CENTER
                 setPadding(0, dp(10f), 0, dp(10f))
+                minHeight = dp(48f)
                 isClickable = true
+                isFocusable = true
             }
         }
         fun paint(index: Int) = items.forEachIndexed { i, item ->
@@ -202,7 +215,8 @@ class Ui(private val context: Context) {
         this.hint = hint
         setHintTextColor(muted)
         setTextColor(textColor)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(16f))
+        minHeight = dp(48f)
         background = rounded(track, 14f)
         setPadding(dp(14f), dp(12f), dp(14f), dp(12f))
         inputType = InputType.TYPE_CLASS_TEXT
@@ -217,8 +231,8 @@ class Ui(private val context: Context) {
 
     /** Bars with a label underneath and the value on top, e.g. minutes per weekday. */
     fun barChart(labels: List<String>, values: List<Int>, highlight: Int) =
-        BarChartView(context, labels, values, highlight, accent, accentSoft, muted, textColor).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150f)).apply {
+        BarChartView(context, labels, values, highlight, accent, accentSoft, muted, textColor, sp(12f)).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150f * textScale)).apply {
                 topMargin = dp(8f)
                 bottomMargin = dp(8f)
             }
@@ -267,12 +281,13 @@ class BarChartView(
     private val soft: Int,
     private val labelColor: Int,
     private val valueColor: Int,
+    textSp: Float,
 ) : View(context) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
-        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, resources.displayMetrics)
+        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, textSp, resources.displayMetrics)
     }
     private val rect = RectF()
 
