@@ -229,7 +229,7 @@ class BlockerService : AccessibilityService() {
         val now = SystemClock.elapsedRealtime()
         // Show the time left every time counting starts again; only a split-second gap
         // inside the app (the screen briefly not recognised while scrolling) doesn't count.
-        if (remaining != null && (app != lastApp || now - lastSessionEnd > REMINDER_GAP_MS)) {
+        if (remaining != null && store.isOn(Hint.REMAINING) && (app != lastApp || now - lastSessionEnd > REMINDER_GAP_MS)) {
             val minutes = (remaining + Store.MINUTE - 1) / Store.MINUTE
             showOverlay(if (minutes == 1L) "Noch 1 Minute" else "Noch $minutes Minuten", small = true)
         }

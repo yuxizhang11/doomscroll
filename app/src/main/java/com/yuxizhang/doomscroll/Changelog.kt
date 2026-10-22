@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.21" to listOf(
+            "Neuer Bereich Hinweise: Restzeit, Update-Benachrichtigung, Update-Popup und „Was ist neu“ einzeln abschaltbar.",
+        ),
         "1.20" to listOf(
             "Schriftgröße in der App einstellbar (Darstellung).",
             "Größere Tippflächen und besserer Kontrast, Knöpfe für TalkBack beschriftet.",

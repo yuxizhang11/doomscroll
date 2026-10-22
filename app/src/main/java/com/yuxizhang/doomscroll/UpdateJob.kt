@@ -50,7 +50,7 @@ class UpdateJob : JobService() {
         /** Shows the notification unless this version was already announced. */
         fun notifyOnce(context: Context, release: Updater.Release) {
             val store = Store.get(context)
-            if (store.notifiedVersion == release.version) return
+            if (!store.isOn(Hint.UPDATE_NOTIFICATION) || store.notifiedVersion == release.version) return
             val manager = context.getSystemService(NotificationManager::class.java)
             if (!manager.areNotificationsEnabled()) return
             manager.createNotificationChannel(

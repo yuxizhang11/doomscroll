@@ -5,6 +5,14 @@ import android.content.SharedPreferences
 import java.time.LocalDate
 import java.time.LocalDateTime
 
+/** Hints and notifications that can each be switched off; all are on by default. */
+enum class Hint(val key: String, val label: String, val detail: String) {
+    REMAINING("hint_remaining", "Restzeit beim Öffnen", "Kurz „Noch X Minuten“, wenn du Reels oder Shorts öffnest."),
+    UPDATE_NOTIFICATION("hint_update_notification", "Update-Benachrichtigung", "Meldung auf dem Handy, sobald eine neue Version da ist."),
+    UPDATE_POPUP("hint_update_popup", "Update-Popup", "Fragt beim Öffnen der App, ob das Update installiert werden soll."),
+    WHATS_NEW("hint_whats_new", "Was ist neu", "Zeigt nach einem Update kurz die Änderungen."),
+}
+
 /**
  * All settings and today's counters, kept in one small SharedPreferences file.
  * Usage and unlocks belong to a single day and are wiped the first time they are
@@ -100,6 +108,10 @@ class Store private constructor(context: Context) {
         if (day == LocalDate.now()) return TargetApp.entries.sumOf(::usageMs)
         return prefs.getLong("$HISTORY$day", 0L)
     }
+
+    fun isOn(hint: Hint): Boolean = prefs.getBoolean(hint.key, true)
+
+    fun setOn(hint: Hint, on: Boolean) = prefs.edit().putBoolean(hint.key, on).apply()
 
     /** Text size inside the app in percent (100 = normal). */
     var textScalePercent: Int

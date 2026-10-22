@@ -83,6 +83,7 @@ class MainActivity : Activity() {
         val seen = store.lastSeenVersion
         if (seen == current) return false
         store.lastSeenVersion = current
+        if (!store.isOn(Hint.WHATS_NEW)) return false
         val news = Changelog.since(seen, current)
         if (news.isEmpty()) return false
         showChangelog("Neu in Version $current", news)
@@ -127,7 +128,7 @@ class MainActivity : Activity() {
 
     /** Pops up once per app start when a newer version is waiting. */
     private fun offerUpdate(release: Updater.Release) {
-        if (offeredVersion == release.version || !store.setupDone) return
+        if (offeredVersion == release.version || !store.setupDone || !store.isOn(Hint.UPDATE_POPUP)) return
         offeredVersion = release.version
         AlertDialog.Builder(this)
             .setTitle("Update verfügbar")
@@ -264,6 +265,7 @@ class MainActivity : Activity() {
                     section("adult", adultCard()),
                     section("protection", protectionCard()),
                     section("unlock", unlockCard()),
+                    section("hints", hintsCard(), "${Hint.entries.count(store::isOn)} von ${Hint.entries.size} an"),
                     section("display", displayCard(), TEXT_SIZES.firstOrNull { it.second == store.textScalePercent }?.first),
                     ui.column(updateSection()).also { updateHolder = it },
                 ).toTypedArray()
@@ -484,6 +486,23 @@ class MainActivity : Activity() {
             ui.spacer(0f).apply { layoutParams = android.widget.LinearLayout.LayoutParams(ui.dp(8f), 1) },
             ui.roundButton("+", "$spoken: $STEP_MINUTES Minuten mehr") { change(STEP_MINUTES) },
         ).apply { setPadding(0, ui.dp(6f), 0, ui.dp(6f)) }
+    }
+
+    /** One switch per hint or notification. */
+    private fun hintsCard(): LinearLayout {
+        val card = ui.card(ui.cardTitle("Hinweise"))
+        for (hint in Hint.entries) {
+            val toggle = ui.switch(store.isOn(hint)).apply {
+                contentDescription = hint.label
+                setOnCheckedChangeListener { _, checked -> store.setOn(hint, checked) }
+            }
+            card.addView(ui.row(ui.label(hint.label, 16f, ui.textColor, bold = true), toggle).apply {
+                minimumHeight = ui.dp(48f)
+            })
+            card.addView(ui.body(hint.detail))
+        }
+        card.addView(ui.body("Die Vorwarnung stellst du unter Limits ein. „Genug für heute!“ gehört zur Sperre und bleibt immer an."))
+        return card
     }
 
     /** Text size inside this app and its popups, on top of the phone's own font size. */
