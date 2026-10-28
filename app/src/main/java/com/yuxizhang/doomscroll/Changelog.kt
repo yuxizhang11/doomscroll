@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.23" to listOf(
+            "Die Restzeit erscheint jetzt auch, wenn du schnell aus einem Reel oder Short raus- und in das nächste reingehst.",
+        ),
         "1.22" to listOf(
             "Datensicherung: Einstellungen und Verlauf exportieren und auf einem anderen Handy importieren.",
         ),

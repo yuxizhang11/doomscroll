@@ -3,6 +3,15 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.23
+
+- [ ] Instagram: Reel öffnen, sofort zurück und direkt ein anderes Reel antippen (unter 1 s): Restzeit erscheint.
+- [ ] YouTube: Short öffnen, sofort zurück und direkt ein anderes Short antippen: Restzeit erscheint.
+- [ ] Reel per Runterwischen schließen und gleich ein neues öffnen: Restzeit erscheint.
+- [ ] Innerhalb der Reels-/Shorts-Ansicht zum nächsten Video wischen (auch schnell, mehrmals): keine Restzeit.
+- [ ] Zeit wird weiter richtig gezählt (Verlauf), Sperre und Vorwarnung kommen wie bisher.
+- [ ] Akku: 10 Minuten Reels schauen, kein auffälliger Mehrverbrauch und kein Ruckeln.
+
 ## 1.22
 
 - [ ] Update von 1.21: alle Einstellungen und der Verlauf sind noch da.
