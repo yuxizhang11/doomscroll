@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.23
+
+- Die Restzeit erscheint jetzt auch, wenn du schnell aus einem Reel oder Short raus- und in das nächste reingehst.
+
 ## 1.22
 
 - Datensicherung: Einstellungen und Verlauf exportieren und auf einem anderen Handy importieren.

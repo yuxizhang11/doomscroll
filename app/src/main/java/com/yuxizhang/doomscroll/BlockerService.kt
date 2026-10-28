@@ -115,7 +115,8 @@ class BlockerService : AccessibilityService() {
             return
         }
         // Events arrive in bursts while videos play; look at the screen once they settle,
-        // but at least once a second, since a playing video may never let them settle.
+        // but at least every SCREEN_MAX_WAIT_MS, since a playing video may never let them settle
+        // and a quick hop out of a reel and into the next would otherwise go unnoticed.
         // Opening an app or screen is looked at right away, so the time left shows without delay.
         handler.removeCallbacks(checkScreen)
         val waited = SystemClock.elapsedRealtime() - lastScreenCheck
@@ -339,13 +340,14 @@ class BlockerService : AccessibilityService() {
 
     companion object {
         private const val DEBOUNCE_MS = 150L
-        private const val SCREEN_MAX_WAIT_MS = 1_000L
+        private const val SCREEN_MAX_WAIT_MS = 300L
         private const val BROWSER_CHECK_MS = 500L
         private const val POLL_MS = 1_000L
         private const val FULL_CHECK_TICKS = 5
         private const val RETRY_MS = 600L
         private const val OVERLAY_MS = 2_500L
-        private const val REMINDER_GAP_MS = 1_000L
+        // Longer than one missed check while swiping between reels, shorter than leaving and tapping another.
+        private const val REMINDER_GAP_MS = 400L
         private const val OVERLAY_COOLDOWN_MS = 4_000L
     }
 }
