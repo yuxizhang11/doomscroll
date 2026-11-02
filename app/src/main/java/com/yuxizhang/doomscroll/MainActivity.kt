@@ -636,7 +636,7 @@ class MainActivity : Activity() {
     /** Own blocked words; adding is free, removing needs the 20 characters like switching off. */
     private fun adultWordsSection(): View {
         val box = ui.column(ui.spacer(12f), ui.label("Eigene Wörter", 15f, ui.textColor, bold = true),
-            ui.body("Werden im Browser wie „porn“ gesperrt, z. B. deepfake."))
+            ui.body("Werden im Browser wie „porn“ gesperrt."))
         for (word in store.adultWords.sorted()) {
             box.addView(ui.row(ui.label(word, 15f, ui.textColor), ui.secondaryButton("Entfernen") {
                 pendingWord = word

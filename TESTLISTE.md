@@ -3,6 +3,10 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.25
+
+- [ ] Porno-Blocker → Eigene Wörter: Hinweistext nennt kein Beispielwort mehr.
+
 ## 1.24
 
 - [ ] Porno-Blocker → Eigene Wörter: „deepfake“ hinzufügen, erscheint in der Liste.
