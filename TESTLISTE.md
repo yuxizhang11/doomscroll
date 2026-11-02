@@ -3,6 +3,12 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.26
+
+- [ ] Limits: zwischen den Apps ist eine Trennlinie, in hellem und dunklem Modus sichtbar.
+- [ ] Das ✕ steht direkt neben dem App-Namen, ist kleiner, lässt sich aber gut treffen; Entfernen funktioniert wie vorher.
+- [ ] Große Schriftgröße (200 %): Name und ✕ bleiben in einer Zeile ohne Überlappung.
+
 ## 1.25
 
 - [ ] Porno-Blocker → Eigene Wörter: Hinweistext nennt kein Beispielwort mehr.
