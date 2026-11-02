@@ -158,8 +158,9 @@ class BlockerService : AccessibilityService() {
     private fun blockPorn(root: AccessibilityNodeInfo, address: String?): Boolean {
         // Typing a porn word or site is stopped right away: the field is emptied and you
         // are sent to the home screen before anything loads.
+        val words = store.adultWords
         val field = AdultFilter.typingField(root)
-        if (field != null && AdultFilter.isPorn(field.text?.toString().orEmpty())) {
+        if (field != null && AdultFilter.isPorn(field.text?.toString().orEmpty(), words)) {
             val empty = Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
             }
@@ -168,14 +169,14 @@ class BlockerService : AccessibilityService() {
             performGlobalAction(GLOBAL_ACTION_HOME)
             return true
         }
-        if (address == null || !AdultFilter.isPorn(address)) return false
+        if (address == null || !AdultFilter.isPorn(address, words)) return false
         val pkg = root.packageName
         showOverlay("Diese Seite ist gesperrt 🔒")
         performGlobalAction(GLOBAL_ACTION_BACK)
         handler.postDelayed({
             val now = rootInActiveWindow
             val still = now != null && now.packageName == pkg &&
-                AdultFilter.currentAddress(now)?.let(AdultFilter::isPorn) == true
+                AdultFilter.currentAddress(now)?.let { AdultFilter.isPorn(it, words) } == true
             if (still) performGlobalAction(GLOBAL_ACTION_HOME)
         }, RETRY_MS)
         return true

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.24
+
+- Porno-Blocker: eigene Wörter (z. B. deepfake) im Browser sperren; Entfernen nur mit Code.
+- Porno-Blocker wirkt in weiteren Browsern (u. a. „Internet“ von Xiaomi, Huawei, Oppo, Vivo, Yandex, UC, Google-App).
+
 ## 1.23
 
 - Die Restzeit erscheint jetzt auch, wenn du schnell aus einem Reel oder Short raus- und in das nächste reingehst.

@@ -43,6 +43,7 @@ class MainActivity : Activity() {
 
     /** Settings waiting for the unlock sentence because they loosen a limit. */
     private var pending: PendingSettings? = null
+    private var pendingWord: String? = null
 
     /** First-start setup: 0 = not running, 1 = choose apps, 2 = choose time. */
     private var setupStep = 0
@@ -238,12 +239,14 @@ class MainActivity : Activity() {
             when (requestCode) {
                 REQUEST_SETTINGS -> pending?.let { apply(it) }
                 REQUEST_ADULT_OFF -> store.adultFilterEnabled = false
+                REQUEST_WORD_REMOVE -> pendingWord?.let(store::removeAdultWord)
                 REQUEST_APP_SETTINGS -> openAppSettings()
                 // onResume, which runs next, starts the setup again.
                 REQUEST_SETUP -> store.setupDone = false
             }
         }
         pending = null
+        pendingWord = null
     }
 
     private fun exportBackup(uri: Uri) {
@@ -619,6 +622,7 @@ class MainActivity : Activity() {
             ui.row(ui.cardTitle("Porno-Blocker"), toggle),
             ui.body("Sperrt pornografische Seiten in Chrome, Firefox, Samsung Internet, Brave, Edge, Opera und weiteren Browsern. Alle anderen Seiten bleiben offen."),
         )
+        card.addView(adultWordsSection())
         when {
             !on -> Unit
             unlocked -> card.addView(ui.pill("Heute aufgehoben", ui.accentSoft, ui.accent))
@@ -627,6 +631,30 @@ class MainActivity : Activity() {
             })
         }
         return card
+    }
+
+    /** Own blocked words; adding is free, removing needs the 20 characters like switching off. */
+    private fun adultWordsSection(): View {
+        val box = ui.column(ui.spacer(12f), ui.label("Eigene Wörter", 15f, ui.textColor, bold = true),
+            ui.body("Werden im Browser wie „porn“ gesperrt, z. B. deepfake."))
+        for (word in store.adultWords.sorted()) {
+            box.addView(ui.row(ui.label(word, 15f, ui.textColor), ui.secondaryButton("Entfernen") {
+                pendingWord = word
+                @Suppress("DEPRECATION")
+                startActivityForResult(UnlockActivity.intent(this, UnlockActivity.SCOPE_ADULT_OFF), REQUEST_WORD_REMOVE)
+            }.apply { contentDescription = "$word entfernen" }))
+        }
+        val field = ui.input("Neues Wort")
+        box.addView(field)
+        box.addView(ui.secondaryButton("Wort hinzufügen") {
+            if (Store.cleanWord(field.text.toString()) == null) {
+                Toast.makeText(this, "Mindestens 2 Zeichen.", Toast.LENGTH_SHORT).show()
+            } else {
+                store.addAdultWord(field.text.toString())
+                render()
+            }
+        })
+        return box
     }
 
     /**
@@ -822,6 +850,7 @@ class MainActivity : Activity() {
         private const val REQUEST_NOTIFICATIONS = 5
         private const val REQUEST_EXPORT = 6
         private const val REQUEST_IMPORT = 7
+        private const val REQUEST_WORD_REMOVE = 8
         private const val MAX_BACKUP_BYTES = 1 shl 20
 
         /** The version the update popup was shown for in this app start. */
