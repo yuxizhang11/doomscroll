@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.26
+
+- Eingebundene Apps: Trennlinie zwischen den Apps, das ✕ ist kleiner und steht direkt neben dem Namen.
+
 ## 1.25
 
 - Eigene Wörter: Beispieltext im Hinweis entfernt.

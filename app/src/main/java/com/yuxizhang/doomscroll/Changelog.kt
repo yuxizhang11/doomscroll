@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.26" to listOf(
+            "Eingebundene Apps: Trennlinie zwischen den Apps, das ✕ ist kleiner und steht direkt neben dem Namen.",
+        ),
         "1.25" to listOf(
             "Eigene Wörter: Beispieltext im Hinweis entfernt.",
         ),

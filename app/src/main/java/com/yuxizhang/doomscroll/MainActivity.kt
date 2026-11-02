@@ -472,11 +472,21 @@ class MainActivity : Activity() {
             globalRow,
         )
         for (app in mine) {
-            card.addView(ui.spacer(10f))
-            card.addView(ui.row(
-                ui.label(app.label, 16f, ui.textColor, bold = true),
-                ui.roundButton("✕", "${app.label} entfernen") { setAppChosen(app, false) },
-            ))
+            card.addView(View(this).apply {
+                setBackgroundColor(ui.muted and 0x33FFFFFF)
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
+                    .apply { topMargin = ui.dp(12f); bottomMargin = ui.dp(10f) }
+            })
+            // The ✕ sits right behind the name; 36 dp is smaller but still easy to hit.
+            card.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(ui.label(app.label, 16f, ui.textColor, bold = true))
+                addView(ui.roundButton("✕", "${app.label} entfernen") { setAppChosen(app, false) }.apply {
+                    textSize = 14f
+                    layoutParams = LinearLayout.LayoutParams(ui.dp(36f), ui.dp(36f)).apply { marginStart = ui.dp(8f) }
+                })
+            })
             card.addView(appSteppers.getValue(app))
         }
         if (enabled.getValue(TargetApp.TIKTOK)) {
