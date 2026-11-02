@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.25
+
+- Eigene Wörter: Beispieltext im Hinweis entfernt.
+
 ## 1.24
 
 - Porno-Blocker: eigene Wörter (z. B. deepfake) im Browser sperren; Entfernen nur mit Code.

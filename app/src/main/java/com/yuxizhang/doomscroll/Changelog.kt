@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.25" to listOf(
+            "Eigene Wörter: Beispieltext im Hinweis entfernt.",
+        ),
         "1.24" to listOf(
             "Porno-Blocker: eigene Wörter (z. B. deepfake) im Browser sperren; Entfernen nur mit Code.",
             "Porno-Blocker wirkt in weiteren Browsern (u. a. „Internet“ von Xiaomi, Huawei, Oppo, Vivo, Yandex, UC, Google-App).",
