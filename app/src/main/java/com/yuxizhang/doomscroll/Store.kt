@@ -61,13 +61,17 @@ class Store private constructor(context: Context) {
                 key.startsWith("hint_") -> editor.putBoolean(key, values.optBoolean(key, true))
                 key == KEY_TEXT_SCALE -> editor.putInt(key, values.optInt(key, 100).coerceIn(80, 200))
                 key == KEY_ADULT -> if (values.optBoolean(key, false)) editor.putBoolean(key, true)
+                // Own words are only ever added, never dropped by an import.
+                key == KEY_ADULT_WORDS -> values.optJSONArray(key)?.let { arr ->
+                    editor.putStringSet(key, adultWords + (0 until arr.length()).mapNotNull { cleanWord(arr.optString(it)) })
+                }
             }
         }
         editor.apply()
     }
 
     private fun isSafeKey(key: String) =
-        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key == KEY_ADULT
+        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key == KEY_ADULT || key == KEY_ADULT_WORDS
 
     var perAppMode: Boolean
         get() = prefs.getBoolean(KEY_PER_APP, false)
@@ -181,6 +185,18 @@ class Store private constructor(context: Context) {
         prefs.edit().putBoolean(KEY_ADULT_UNLOCK, true).apply()
     }
 
+    /** Own words for the porn blocker, e.g. "deepfake"; blocked in browsers like "porn". */
+    val adultWords: Set<String>
+        get() = prefs.getStringSet(KEY_ADULT_WORDS, emptySet()).orEmpty().toSet()
+
+    fun addAdultWord(word: String) {
+        val clean = cleanWord(word) ?: return
+        prefs.edit().putStringSet(KEY_ADULT_WORDS, adultWords + clean).apply()
+    }
+
+    fun removeAdultWord(word: String) =
+        prefs.edit().putStringSet(KEY_ADULT_WORDS, adultWords - word).apply()
+
     fun isAdultFilterActive(): Boolean = adultFilterEnabled && !isAdultUnlockedToday()
 
     /** Until when (wall clock) the uninstall/switch-off protection is lifted. */
@@ -292,6 +308,7 @@ class Store private constructor(context: Context) {
         private const val KEY_SCHEMA = "schema_version"
         private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_ADULT = "adult_filter"
+        private const val KEY_ADULT_WORDS = "adult_words"
         private const val KEY_ADULT_UNLOCK = "unlock_adult_filter"
         private const val KEY_PROTECTION_UNTIL = "protection_until"
         private const val KEY_ADMIN_SETUP_UNTIL = "admin_setup_until"
@@ -299,6 +316,9 @@ class Store private constructor(context: Context) {
         /** Keys of the limit settings, which only change through the screen's save. */
         private val LIMIT_KEYS = setOf(KEY_PER_APP, KEY_GLOBAL_LIMIT, KEY_WARN, KEY_QUIET, KEY_QUIET_START, KEY_QUIET_END)
         private val LIMIT_PREFIXES = listOf("limit_", "enabled_")
+
+        /** Lower case, trimmed, at least 2 characters so a single letter cannot block every page. */
+        fun cleanWord(word: String): String? = word.trim().lowercase().takeIf { it.length >= 2 }
 
         @Volatile
         private var instance: Store? = null

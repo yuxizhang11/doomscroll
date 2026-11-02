@@ -42,6 +42,19 @@ object AdultFilter {
         "com.vivaldi.browser" to listOf("com.vivaldi.browser:id/url_bar"),
         "com.kiwibrowser.browser" to listOf("com.kiwibrowser.browser:id/url_bar"),
         "com.mi.globalbrowser" to listOf("com.mi.globalbrowser:id/url"),
+        // Browsers without known ids: the toolbar is read instead (see currentAddress).
+        "com.android.browser" to emptyList(), // "Internet" on Xiaomi and older phones
+        "com.huawei.browser" to emptyList(),
+        "com.heytap.browser" to emptyList(), // Oppo, Realme, OnePlus
+        "com.coloros.browser" to emptyList(),
+        "com.vivo.browser" to emptyList(),
+        "com.yandex.browser" to emptyList(),
+        "com.UCMobile.intl" to emptyList(),
+        "org.mozilla.klar" to emptyList(),
+        "org.cromite.cromite" to emptyList(),
+        "us.spotco.fennec_dos" to emptyList(), // Mull
+        "io.github.forkmaintainers.iceraven" to emptyList(),
+        "com.google.android.googlequicksearchbox" to emptyList(), // Google search app
     )
 
     /** Names of porn sites; matched anywhere, so searching for them is caught too. */
@@ -101,10 +114,10 @@ object AdultFilter {
         }
     }
 
-    /** A porn site or a search for porn. */
-    fun isPorn(address: String): Boolean {
+    /** A porn site or a search for porn; [ownWords] are the user's extra words, matched like "porn". */
+    fun isPorn(address: String, ownWords: Set<String> = emptySet()): Boolean {
         val text = address.lowercase()
-        if (SITE_NAMES.any { it in text } || KEYWORDS.any { it in text }) return true
+        if (SITE_NAMES.any { it in text } || KEYWORDS.any { it in text } || ownWords.any { it in text }) return true
         if (WHOLE_WORDS.containsMatchIn(text)) return true
         return text.lines().any { line ->
             val host = line.trim().substringAfter("://").substringBefore('/').substringBefore('?').removePrefix("www.")

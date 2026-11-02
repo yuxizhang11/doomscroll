@@ -3,6 +3,17 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.24
+
+- [ ] Porno-Blocker → Eigene Wörter: „deepfake“ hinzufügen, erscheint in der Liste.
+- [ ] Im Browser „deepfake“ (auch „DeepFake videos“) suchen: Feld wird geleert, Sperre erscheint.
+- [ ] Seite mit „deepfake“ in der Adresse öffnen: Seite wird gesperrt.
+- [ ] „deepfake“ in WhatsApp oder Notizen tippen: nichts passiert.
+- [ ] Ein Zeichen hinzufügen: Meldung „Mindestens 2 Zeichen“, nichts gespeichert.
+- [ ] Entfernen: 20 Zeichen müssen abgetippt werden, danach ist das Wort weg; Abbrechen lässt es stehen.
+- [ ] Export/Import: Wörter sind nach Import da; Import entfernt keine vorhandenen Wörter.
+- [ ] Vorinstallierter Browser „Internet“ (Xiaomi/Huawei/Oppo, falls vorhanden) und Google-App-Suche: „porn“ wird gesperrt.
+
 ## 1.23
 
 - [ ] Instagram: Reel öffnen, sofort zurück und direkt ein anderes Reel antippen (unter 1 s): Restzeit erscheint.
