@@ -38,6 +38,7 @@ class BlockerService : AccessibilityService() {
     private var activeApp: TargetApp? = null
     private var sessionStart = 0L
     private var lastBlockAt = 0L
+    private var lastStartPageAt = 0L
     private var lastApp: TargetApp? = null
     private var lastSessionEnd = 0L
     private var overlay: View? = null
@@ -282,16 +283,38 @@ class BlockerService : AccessibilityService() {
             return
         }
         // Back leaves Reels/Shorts and keeps the rest of the app usable.
-        // If that is not enough, try once more and then fall back to the home screen.
+        // If that is not enough, try once more and then fall back to the app's start page,
+        // or to the home screen in a browser. Back also closes an app that opened straight
+        // into a reel; then the app is opened again on its start page.
+        val pkg = rootInActiveWindow?.packageName?.toString()?.takeIf { it in app.packages }
+        val closed = { pkg != null && rootInActiveWindow?.packageName?.toString() != pkg }
+        val fallback = { if (pkg == null || !openStartPage(pkg)) performGlobalAction(GLOBAL_ACTION_HOME) }
         performGlobalAction(GLOBAL_ACTION_BACK)
         handler.postDelayed({
-            if (detectShortForm() == app) {
-                performGlobalAction(GLOBAL_ACTION_BACK)
-                handler.postDelayed({
-                    if (detectShortForm() == app) performGlobalAction(GLOBAL_ACTION_HOME)
-                }, RETRY_MS)
+            when {
+                closed() -> fallback()
+                detectShortForm() == app -> {
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    handler.postDelayed({
+                        if (closed() || detectShortForm() == app) fallback()
+                    }, RETRY_MS)
+                }
             }
         }, RETRY_MS)
+    }
+
+    /**
+     * Restarts [pkg] fresh, which lands on its start page. Returns false if that fails or was
+     * just tried, so an app that keeps reopening a reel can't trap you in a loop.
+     */
+    private fun openStartPage(pkg: String): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastStartPageAt < START_PAGE_COOLDOWN_MS) return false
+        lastStartPageAt = now
+        // An implicit intent needs no <queries> entry in the manifest.
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(pkg)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        return runCatching { startActivity(intent) }.isSuccess
     }
 
     /** A big message in the middle, or with [small] a short hint near the top. */
@@ -350,5 +373,6 @@ class BlockerService : AccessibilityService() {
         // Longer than one missed check while swiping between reels, shorter than leaving and tapping another.
         private const val REMINDER_GAP_MS = 400L
         private const val OVERLAY_COOLDOWN_MS = 4_000L
+        private const val START_PAGE_COOLDOWN_MS = 10_000L
     }
 }
