@@ -4,6 +4,9 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.27" to listOf(
+            "YouTube und Instagram: Öffnet die App direkt ein Short oder Reel, landest du nach der Sperre auf der Startseite der App statt auf dem Homescreen.",
+        ),
         "1.26" to listOf(
             "Eingebundene Apps: Trennlinie zwischen den Apps, das ✕ ist kleiner und steht direkt neben dem Namen.",
         ),

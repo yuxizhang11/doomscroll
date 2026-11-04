@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.27
+
+- YouTube und Instagram: Öffnet die App direkt ein Short oder Reel, landest du nach der Sperre auf der Startseite der App statt auf dem Homescreen.
+
 ## 1.26
 
 - Eingebundene Apps: Trennlinie zwischen den Apps, das ✕ ist kleiner und steht direkt neben dem Namen.

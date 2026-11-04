@@ -3,6 +3,15 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.27
+
+- [ ] Limit erreicht, YouTube aus einem Short heraus schließen und neu öffnen (startet im Short): Sperre erscheint, YouTube öffnet sich auf der Startseite.
+- [ ] Dasselbe mit Instagram und einem Reel: Instagram öffnet sich auf dem Feed.
+- [ ] Short-Link aus WhatsApp öffnen bei erreichtem Limit: YouTube-Startseite statt Homescreen.
+- [ ] Short aus dem YouTube-Feed antippen bei erreichtem Limit: wie bisher zurück in den Feed, kein Neustart der App.
+- [ ] youtube.com/shorts im Browser bei erreichtem Limit: wie bisher zurück bzw. Homescreen, YouTube-App öffnet sich nicht.
+- [ ] TikTok bei erreichtem Limit: weiterhin Homescreen.
+
 ## 1.26
 
 - [ ] Limits: zwischen den Apps ist eine Trennlinie, in hellem und dunklem Modus sichtbar.
