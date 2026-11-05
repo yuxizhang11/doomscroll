@@ -32,27 +32,33 @@ object Updater {
     fun check(context: Context, done: (Result<Release?>) -> Unit) {
         val current = currentVersion(context)
         worker.execute {
-            val result = runCatching {
-                val json = JSONObject(get(LATEST_RELEASE).bufferedReader().use { it.readText() })
-                val version = json.getString("tag_name").removePrefix("v")
-                val assets = json.getJSONArray("assets")
-                val apk = (0 until assets.length()).map(assets::getJSONObject)
-                    .firstOrNull { it.getString("name").endsWith(".apk") }
-                    ?: error("Kein APK im Release")
-                Release(version, apk.getString("browser_download_url")).takeIf { isNewer(version, current) }
-            }
+            val result = runCatching { fetchLatest().takeIf { isNewer(it.version, current) } }
             main.post { done(result) }
         }
     }
 
+    /** Asks GitHub for the newest published release (blocking, call off the main thread). */
+    private fun fetchLatest(): Release {
+        val json = JSONObject(get(LATEST_RELEASE).bufferedReader().use { it.readText() })
+        val version = json.getString("tag_name").removePrefix("v")
+        val assets = json.getJSONArray("assets")
+        val apk = (0 until assets.length()).map(assets::getJSONObject)
+            .firstOrNull { it.getString("name").endsWith(".apk") }
+            ?: error("Kein APK im Release")
+        return Release(version, apk.getString("browser_download_url"))
+    }
+
     /**
-     * Downloads [release] straight into an install session and hands it to the system,
-     * which shows its confirmation. [done] gets null on success or the error message.
+     * Looks up the newest release again, so a version found earlier never gets installed by mistake,
+     * downloads it straight into an install session and hands it to the system, which shows its
+     * confirmation. [done] gets null on success or the error message.
      */
-    fun install(context: Context, release: Release, done: (String?) -> Unit) {
+    fun install(context: Context, done: (String?) -> Unit) {
         val app = context.applicationContext
         worker.execute {
             val error = runCatching {
+                val release = fetchLatest().takeIf { isNewer(it.version, currentVersion(app)) }
+                    ?: error("Du hast schon die neueste Version.")
                 val installer = app.packageManager.packageInstaller
                 val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
                     .apply { setAppPackageName(app.packageName) }
