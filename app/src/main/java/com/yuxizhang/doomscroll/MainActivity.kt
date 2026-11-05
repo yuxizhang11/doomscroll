@@ -134,7 +134,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Update verfügbar")
             .setMessage("Version ${release.version} ist da. Jetzt installieren?")
-            .setPositiveButton("Installieren") { _, _ -> installUpdate(release) }
+            .setPositiveButton("Installieren") { _, _ -> installUpdate() }
             .setNegativeButton("Später", null)
             .show()
     }
@@ -727,8 +727,8 @@ class MainActivity : Activity() {
         )
         val release = update
         when {
-            installing -> card.addView(ui.pill("Wird heruntergeladen …", ui.accentSoft, ui.accent))
-            release != null -> card.addView(ui.primaryButton("Version ${release.version} installieren") { installUpdate(release) })
+            installing -> card.addView(ui.pill("Suche und lade die neueste Version …", ui.accentSoft, ui.accent))
+            release != null -> card.addView(ui.primaryButton("Version ${release.version} installieren") { installUpdate() })
             else -> card.addView(ui.secondaryButton("Nach Updates suchen") {
                 checkForUpdate()
                 refreshUpdateCard()
@@ -738,7 +738,7 @@ class MainActivity : Activity() {
         return card
     }
 
-    private fun installUpdate(release: Updater.Release) {
+    private fun installUpdate() {
         // Android lets an app install updates only after you allow it once.
         if (!packageManager.canRequestPackageInstalls()) {
             Toast.makeText(this, "Erlaube „Apps aus dieser Quelle“, dann tippe nochmal", Toast.LENGTH_LONG).show()
@@ -747,9 +747,9 @@ class MainActivity : Activity() {
         }
         installing = true
         refreshUpdateCard()
-        Updater.install(this, release) { error ->
+        Updater.install(this) { error ->
             installing = false
-            if (error != null) updateStatus = "Download fehlgeschlagen: $error"
+            if (error != null) updateStatus = "Update fehlgeschlagen: $error"
             if (!isFinishing) refreshUpdateCard()
         }
     }
