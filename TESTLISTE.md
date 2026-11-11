@@ -3,6 +3,14 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## 1.28
+
+- [ ] Porno-Blocker: Schalter steht auf „an“ und lässt sich nicht antippen, kein Code-Feld, kein „Heute aufheben“.
+- [ ] Porno-Wort im Browser suchen: Seite wird gesperrt.
+- [ ] Eigenes Wort hinzufügen funktioniert, einen „Entfernen“-Knopf gibt es nicht mehr.
+- [ ] Update über die alte Version: Blocker bleibt an, Einstellungen bleiben erhalten.
+- [ ] Update-Hinweis: Installation lädt die neueste Version.
+
 ## 1.27
 
 - [ ] Limit erreicht, YouTube aus einem Short heraus schließen und neu öffnen (startet im Short): Sperre erscheint, YouTube öffnet sich auf der Startseite.

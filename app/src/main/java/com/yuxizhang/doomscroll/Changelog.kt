@@ -4,6 +4,10 @@ package com.yuxizhang.doomscroll
 object Changelog {
 
     val entries: List<Pair<String, List<String>>> = listOf(
+        "1.28" to listOf(
+            "Porno-Blocker: dauerhaft an bis zur Deinstallation, kein Ausschalten und keine Tages-Aufhebung mehr; eigene Wörter lassen sich nur noch hinzufügen.",
+            "Update: Vor der Installation wird die neueste Version noch einmal abgefragt.",
+        ),
         "1.27" to listOf(
             "YouTube und Instagram: Öffnet die App direkt ein Short oder Reel, landest du nach der Sperre auf der Startseite der App statt auf dem Homescreen.",
         ),
