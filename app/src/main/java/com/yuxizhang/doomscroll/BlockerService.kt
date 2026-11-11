@@ -151,7 +151,7 @@ class BlockerService : AccessibilityService() {
         if (!AdultFilter.isBrowser(root.packageName)) return
         // Read once: on browsers without known ids this walks the toolbar.
         val address = AdultFilter.currentAddress(root)
-        if (store.isAdultFilterActive() && blockPorn(root, address)) return
+        if (blockPorn(root, address)) return
         onScreenMaybeChanged(address?.let(TargetApp::fromAddress))
     }
 
