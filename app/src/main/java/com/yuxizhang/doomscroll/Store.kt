@@ -60,7 +60,6 @@ class Store private constructor(context: Context) {
                 key.startsWith(HISTORY) -> values.optLong(key, -1).takeIf { it >= 0 }?.let { editor.putLong(key, it) }
                 key.startsWith("hint_") -> editor.putBoolean(key, values.optBoolean(key, true))
                 key == KEY_TEXT_SCALE -> editor.putInt(key, values.optInt(key, 100).coerceIn(80, 200))
-                key == KEY_ADULT -> if (values.optBoolean(key, false)) editor.putBoolean(key, true)
                 // Own words are only ever added, never dropped by an import.
                 key == KEY_ADULT_WORDS -> values.optJSONArray(key)?.let { arr ->
                     editor.putStringSet(key, adultWords + (0 until arr.length()).mapNotNull { cleanWord(arr.optString(it)) })
@@ -71,7 +70,7 @@ class Store private constructor(context: Context) {
     }
 
     private fun isSafeKey(key: String) =
-        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key == KEY_ADULT || key == KEY_ADULT_WORDS
+        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key == KEY_ADULT_WORDS
 
     var perAppMode: Boolean
         get() = prefs.getBoolean(KEY_PER_APP, false)
@@ -170,21 +169,6 @@ class Store private constructor(context: Context) {
 
     val textScale: Float get() = textScalePercent / 100f
 
-    /** Porn blocker for browsers; on unless switched off with the 20-character code. */
-    var adultFilterEnabled: Boolean
-        get() = prefs.getBoolean(KEY_ADULT, true)
-        set(value) = prefs.edit().putBoolean(KEY_ADULT, value).apply()
-
-    fun isAdultUnlockedToday(): Boolean {
-        ensureToday()
-        return prefs.getBoolean(KEY_ADULT_UNLOCK, false)
-    }
-
-    fun unlockAdultToday() {
-        ensureToday()
-        prefs.edit().putBoolean(KEY_ADULT_UNLOCK, true).apply()
-    }
-
     /** Own words for the porn blocker, e.g. "deepfake"; blocked in browsers like "porn". */
     val adultWords: Set<String>
         get() = prefs.getStringSet(KEY_ADULT_WORDS, emptySet()).orEmpty().toSet()
@@ -194,10 +178,6 @@ class Store private constructor(context: Context) {
         prefs.edit().putStringSet(KEY_ADULT_WORDS, adultWords + clean).apply()
     }
 
-    fun removeAdultWord(word: String) =
-        prefs.edit().putStringSet(KEY_ADULT_WORDS, adultWords - word).apply()
-
-    fun isAdultFilterActive(): Boolean = adultFilterEnabled && !isAdultUnlockedToday()
 
     /** Until when (wall clock) the uninstall/switch-off protection is lifted. */
     var protectionUnlockedUntil: Long
@@ -307,9 +287,7 @@ class Store private constructor(context: Context) {
         const val SCHEMA = 1
         private const val KEY_SCHEMA = "schema_version"
         private const val KEY_TEXT_SCALE = "text_scale"
-        private const val KEY_ADULT = "adult_filter"
         private const val KEY_ADULT_WORDS = "adult_words"
-        private const val KEY_ADULT_UNLOCK = "unlock_adult_filter"
         private const val KEY_PROTECTION_UNTIL = "protection_until"
         private const val KEY_ADMIN_SETUP_UNTIL = "admin_setup_until"
 

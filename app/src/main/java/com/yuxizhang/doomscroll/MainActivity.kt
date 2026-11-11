@@ -43,7 +43,6 @@ class MainActivity : Activity() {
 
     /** Settings waiting for the unlock sentence because they loosen a limit. */
     private var pending: PendingSettings? = null
-    private var pendingWord: String? = null
 
     /** First-start setup: 0 = not running, 1 = choose apps, 2 = choose time. */
     private var setupStep = 0
@@ -238,15 +237,12 @@ class MainActivity : Activity() {
         if (resultCode == RESULT_OK) {
             when (requestCode) {
                 REQUEST_SETTINGS -> pending?.let { apply(it) }
-                REQUEST_ADULT_OFF -> store.adultFilterEnabled = false
-                REQUEST_WORD_REMOVE -> pendingWord?.let(store::removeAdultWord)
                 REQUEST_APP_SETTINGS -> openAppSettings()
                 // onResume, which runs next, starts the setup again.
                 REQUEST_SETUP -> store.setupDone = false
             }
         }
         pending = null
-        pendingWord = null
     }
 
     private fun exportBackup(uri: Uri) {
@@ -614,46 +610,21 @@ class MainActivity : Activity() {
     }
 
     private fun adultCard(): LinearLayout {
-        val on = store.adultFilterEnabled
-        val unlocked = store.isAdultUnlockedToday()
-        val toggle = ui.switch(on).apply {
-            setOnCheckedChangeListener { view, checked ->
-                if (checked) {
-                    store.adultFilterEnabled = true
-                } else {
-                    // Turning it off needs the code; the switch only flips once that succeeds.
-                    view.isChecked = true
-                    @Suppress("DEPRECATION")
-                    startActivityForResult(UnlockActivity.intent(this@MainActivity, UnlockActivity.SCOPE_ADULT_OFF), REQUEST_ADULT_OFF)
-                }
-            }
-        }
+        // Permanently on until the app is uninstalled: the switch is shown but cannot be flipped.
+        val toggle = ui.switch(true).apply { isEnabled = false }
         val card = ui.card(
             ui.row(ui.cardTitle("Porno-Blocker"), toggle),
-            ui.body("Sperrt pornografische Seiten in Chrome, Firefox, Samsung Internet, Brave, Edge, Opera und weiteren Browsern. Alle anderen Seiten bleiben offen."),
+            ui.body("Sperrt pornografische Seiten in Chrome, Firefox, Samsung Internet, Brave, Edge, Opera und weiteren Browsern. Alle anderen Seiten bleiben offen. Immer an, bis die App deinstalliert wird."),
         )
         card.addView(adultWordsSection())
-        when {
-            !on -> Unit
-            unlocked -> card.addView(ui.pill("Heute aufgehoben", ui.accentSoft, ui.accent))
-            else -> card.addView(ui.secondaryButton("Heute aufheben (20 Zeichen abtippen)") {
-                startActivity(UnlockActivity.intent(this, UnlockActivity.SCOPE_ADULT))
-            })
-        }
         return card
     }
 
-    /** Own blocked words; adding is free, removing needs the 20 characters like switching off. */
+    /** Own blocked words; they can be added but never removed. */
     private fun adultWordsSection(): View {
         val box = ui.column(ui.spacer(12f), ui.label("Eigene Wörter", 15f, ui.textColor, bold = true),
             ui.body("Werden im Browser wie „porn“ gesperrt."))
-        for (word in store.adultWords.sorted()) {
-            box.addView(ui.row(ui.label(word, 15f, ui.textColor), ui.secondaryButton("Entfernen") {
-                pendingWord = word
-                @Suppress("DEPRECATION")
-                startActivityForResult(UnlockActivity.intent(this, UnlockActivity.SCOPE_ADULT_OFF), REQUEST_WORD_REMOVE)
-            }.apply { contentDescription = "$word entfernen" }))
-        }
+        for (word in store.adultWords.sorted()) box.addView(ui.label(word, 15f, ui.textColor))
         val field = ui.input("Neues Wort")
         box.addView(field)
         box.addView(ui.secondaryButton("Wort hinzufügen") {
@@ -854,13 +825,11 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_SETTINGS = 1
-        private const val REQUEST_ADULT_OFF = 2
         private const val REQUEST_APP_SETTINGS = 3
         private const val REQUEST_SETUP = 4
         private const val REQUEST_NOTIFICATIONS = 5
         private const val REQUEST_EXPORT = 6
         private const val REQUEST_IMPORT = 7
-        private const val REQUEST_WORD_REMOVE = 8
         private const val MAX_BACKUP_BYTES = 1 shl 20
 
         /** The version the update popup was shown for in this app start. */
