@@ -19,6 +19,9 @@ import android.content.Intent
 class UpdateJob : JobService() {
 
     override fun onStartJob(params: JobParameters): Boolean {
+        // With the notification off the background lookup would only cost data and battery;
+        // the app still checks when it is opened.
+        if (!Store.get(this).isOn(Hint.UPDATE_NOTIFICATION)) return false
         Updater.check(this) { result ->
             result.getOrNull()?.let { notifyOnce(this, it) }
             jobFinished(params, false)
