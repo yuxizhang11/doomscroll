@@ -130,8 +130,8 @@ class Look(
     val muted = if (tinted) 0xFF2C3139.toInt() else 0xFFC8D3E6.toInt()
     val accent = text
     val onAccent = if (tinted) WHITE else BLACK
-    val success = if (tinted) text else 0xFF9BF0C0.toInt()
-    val danger = if (tinted) text else 0xFFFFB4B4.toInt()
+    val success = if (tinted) text else 0xFFB8F5D0.toInt()
+    val danger = if (tinted) text else 0xFFFFD0D0.toInt()
     val barSoft = if (tinted) 0xFF6B7280.toInt() else 0x8CFFFFFF.toInt()
     val edge = if (tinted) 0xB3FFFFFF.toInt() else 0x61FFFFFF
     val highlight = if (tinted) 0xE6FFFFFF.toInt() else 0x99FFFFFF.toInt()
@@ -139,8 +139,8 @@ class Look(
     // Opaque surfaces: also what the glass stands on when it is switched off.
     val opaqueCard = if (tinted) 0xFFD9DCE1.toInt() else if (dark) 0xFF0C2640.toInt() else 0xFF17487F.toInt()
     private val texts = listOf(text, muted, success, danger)
-    private val opaqueHi = if (tinted) 0xFFF6F8FA.toInt() else blend(ensure(argb(0.22f, 0xFFFFFF), listOf(opaqueCard)), opaqueCard)
-    private val opaqueLo = if (tinted) 0xFFBEC3CB.toInt() else blend(ensure(argb(0.12f, 0xFFFFFF), listOf(opaqueCard)), opaqueCard)
+    private val opaqueHi = if (tinted) 0xFFF6F8FA.toInt() else 0xFF000000.toInt() or DENSE_HI
+    private val opaqueLo = if (tinted) 0xFFBEC3CB.toInt() else 0xFF000000.toInt() or DENSE_LO
 
     /** Spots of the ground that text on glass can end up on, lightest and darkest. */
     val backdropSamples: List<Int> = run {
@@ -158,14 +158,20 @@ class Look(
     // Controls sit on the ground (header bar) or on cards.
     private val controlSamples = backdropSamples + cardSamples
 
+    /** Track of bars and inputs. */
+    val track: Int = if (tinted) 0xFFC3C8D0.toInt() else ensure(argb(0.18f, 0xFFFFFF), controlSamples, NAVY)
+
+    // Main button, header bar and chosen capsule (which lies on the track) are the lightest step, then the second button
+    // and small pills (which lie on the header), then the track. Dense Klar glass keeps that order in its colours.
+    private val onTrack = controlSamples + controlSamples.map { blend(track, it) }
+
     /** Main button, header bar, selected capsule. */
-    val hi: Int = if (controlsGlass) ensure(if (tinted) argb(0.88f, 0xF6F8FA) else argb(0.28f, 0xFFFFFF), controlSamples) else opaqueHi
+    val hi: Int = if (controlsGlass) ensure(if (tinted) argb(0.88f, 0xF6F8FA) else argb(0.28f, 0xFFFFFF), onTrack, DENSE_HI) else opaqueHi
+
+    private val onHi = controlSamples + controlSamples.map { blend(hi, it) }
 
     /** Second button and small pills. */
-    val lo: Int = if (controlsGlass) ensure(if (tinted) argb(0.58f, 0xBEC3CB) else argb(0.16f, 0xFFFFFF), controlSamples) else opaqueLo
-
-    /** Track of bars and inputs. */
-    val track: Int = if (tinted) 0xFFC3C8D0.toInt() else ensure(argb(0.18f, 0xFFFFFF), controlSamples)
+    val lo: Int = if (controlsGlass) ensure(if (tinted) argb(0.58f, 0xBEC3CB) else argb(0.16f, 0xFFFFFF), onHi, DENSE_LO) else opaqueLo
 
     /** Fill of the card that says the blocker is off: a grey step in Tinted Dark, never a colour there. */
     val warnCard = if (tinted) 0xFFC9CCD2.toInt() else if (dark) 0xFF4A1F2B.toInt() else 0xFF5C2431.toInt()
@@ -177,12 +183,14 @@ class Look(
     /** Every text colour with every colour that can lie behind it, for the contrast test. */
     fun textPairs(): List<Pair<Int, Int>> {
         val behind = cardSamples + warnCard +
-            controlSamples.flatMap { s -> listOf(blend(hi, s), blend(lo, s), blend(track, s)) }
+            controlSamples.flatMap { s -> listOf(blend(hi, s), blend(lo, s), blend(track, s)) } +
+            // Stacked: the status pill in the header, the chosen capsule on its track.
+            controlSamples.flatMap { s -> listOf(blend(lo, blend(hi, s)), blend(hi, blend(track, s))) }
         return behind.flatMap { back -> texts.map { it to back } }
     }
 
     /** Makes [base] dense enough for [texts] on every sample; light text first thins a white fill, then switches to navy. */
-    private fun ensure(base: Int, samples: List<Int>): Int {
+    private fun ensure(base: Int, samples: List<Int>, dense: Int = NAVY): Int {
         fun ok(fill: Int) = samples.all { s -> texts.all { contrast(it, blend(fill, s)) >= MIN_CONTRAST } }
         if (ok(base)) return base
         val rgb = base and 0xFFFFFF
@@ -195,8 +203,8 @@ class Look(
             a -= 0.02f
             argb(a, rgb).let { if (ok(it)) return it }
         }
-        for (step in 2..20) argb(step * 0.05f, NAVY).let { if (ok(it)) return it }
-        return 0xFF000000.toInt() or NAVY
+        for (step in 10..20) argb(step * 0.05f, dense).let { if (ok(it)) return it }
+        return 0xFF000000.toInt() or dense
     }
 
     private fun clamp(color: Int): Int {
@@ -212,6 +220,8 @@ class Look(
         private const val WHITE = 0xFFFFFFFF.toInt()
         private const val BLACK = 0xFF000000.toInt()
         private const val NAVY = 0x0A1A33
+        private const val DENSE_HI = 0x255387
+        private const val DENSE_LO = 0x1B3D6B
 
         /** Ready-made backgrounds: three stops each (the first one is the standard of Klar · Hell). */
         val GRADIENTS: Map<String, Pair<IntArray, String>> = linkedMapOf(

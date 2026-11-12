@@ -337,6 +337,13 @@ class LookTest {
     }
 
     @Test
+    fun denseKlarGlassKeepsTheStepsBetweenSurfaces() {
+        val look = Look(ThemeMode.HELL, GlassStyle.KLAR, GlassLevel.VOLL, Backdrop(), false, false)
+        assertTrue(Look.luminance(Look.blend(look.hi, 0xFF000000.toInt())) > Look.luminance(Look.blend(look.lo, 0xFF000000.toInt())))
+        assertTrue(Look.luminance(Look.blend(look.lo, 0xFF000000.toInt())) > Look.luminance(Look.blend(look.track, 0xFF000000.toInt())))
+    }
+
+    @Test
     fun tintedDarkIsAlwaysDark() {
         for (theme in ThemeMode.entries) {
             val look = Look(theme, GlassStyle.TINTED_DARK, GlassLevel.VOLL, Backdrop(), systemDark = false, reduced = false)
