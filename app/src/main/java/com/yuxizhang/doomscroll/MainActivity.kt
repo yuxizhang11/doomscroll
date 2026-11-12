@@ -203,7 +203,7 @@ class MainActivity : Activity() {
         }
         setContentView(
             ui.page(
-                ui.title("Willkommen 👋"),
+                ui.title("Willkommen"),
                 ui.subtitle("Schritt $setupStep von 2 · Lass uns den Blocker einrichten."),
                 content,
             )

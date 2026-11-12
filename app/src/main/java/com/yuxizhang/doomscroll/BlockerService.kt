@@ -85,7 +85,7 @@ class BlockerService : AccessibilityService() {
         if (left <= 0) return@Runnable
         store.markWarned(app)
         val minutes = (left + Store.MINUTE - 1) / Store.MINUTE
-        showOverlay(if (minutes == 1L) "Noch 1 Minute ⏳" else "Noch $minutes Minuten ⏳")
+        showOverlay(if (minutes == 1L) "Noch 1 Minute" else "Noch $minutes Minuten")
     }
 
     private val screenOff = object : BroadcastReceiver() {
@@ -169,13 +169,13 @@ class BlockerService : AccessibilityService() {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
             }
             field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, empty)
-            showOverlay("Diese Suche ist gesperrt 🔒")
+            showOverlay("Diese Suche ist gesperrt")
             performGlobalAction(GLOBAL_ACTION_HOME)
             return true
         }
         if (address == null || !AdultFilter.isPorn(address, words)) return false
         val pkg = root.packageName
-        showOverlay("Diese Seite ist gesperrt 🔒")
+        showOverlay("Diese Seite ist gesperrt")
         performGlobalAction(GLOBAL_ACTION_BACK)
         handler.postDelayed({
             val now = rootInActiveWindow
@@ -190,7 +190,7 @@ class BlockerService : AccessibilityService() {
         if (!store.isProtectionActive()) return
         val root = rootInActiveWindow ?: return
         if (!Guard.isWatched(root.packageName) || !Guard.isTamperScreen(root)) return
-        showOverlay("Geschützt 🔒\nErst in Doomscroll Blocker mit 20 Zeichen freischalten")
+        showOverlay("Geschützt\nErst in Doomscroll Blocker mit 20 Zeichen freischalten")
         performGlobalAction(GLOBAL_ACTION_BACK)
         handler.postDelayed({
             val now = rootInActiveWindow
@@ -277,7 +277,7 @@ class BlockerService : AccessibilityService() {
     private fun block(app: TargetApp) {
         val now = SystemClock.elapsedRealtime()
         if (now - lastBlockAt > OVERLAY_COOLDOWN_MS) {
-            showOverlay(if (store.isQuietNow()) "Ruhezeit 🌙" else "Genug für heute! ✋")
+            showOverlay(if (store.isQuietNow()) "Ruhezeit" else "Genug für heute!")
         }
         lastBlockAt = now
 
