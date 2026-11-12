@@ -1,6 +1,7 @@
 package com.yuxizhang.doomscroll
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
@@ -8,65 +9,62 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.RippleDrawable
 import android.os.Build
+import android.os.PowerManager
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsetsController
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 
 /**
- * Tokens of the black mode (DESIGN.md 6a): near-black page, light grey discs with a black glyph,
- * dark grey discs with a light glyph, no colour. The values are estimated from the reference, not measured.
- */
-object MonoTokens {
-    const val BG = 0xFF0A0D12.toInt()
-    const val SURFACE = 0xFF171A20.toInt()
-    const val TRACK = 0xFF2C2F35.toInt()
-    const val DISC = 0xFFD4D4D4.toInt()
-    const val DISC_OFF = 0xFF3C3C3C.toInt()
-    const val GLYPH = 0xFF000000.toInt()
-    const val TEXT = 0xFFFFFFFF.toInt()
-    const val MUTED = 0xFFB4B4B4.toInt()
-}
-
-/**
  * Small design system built from plain framework views, so the app needs no layout files and
- * no extra libraries. Colours follow the phone's light or dark mode.
+ * no extra libraries. There is one design, Liquid Glass (DESIGN.md 6); dark mode, glass style,
+ * glass level and background are settings that only change the [Look] this class reads.
  */
 class Ui(private val context: Context) {
 
     private val store = Store.get(context)
 
-    /** Black mode on: grey scale only, always dark whatever the phone says. */
-    val mono = store.mono
+    private val style = store.glassStyle
 
-    private val dark = mono ||
-        (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    /** The saved picture, or null: then a backdrop of kind "bild" falls back to the standard. */
+    private val picture = if (store.backdrop(style).kind == Backdrop.IMAGE) BackdropImage.load(context, style) else null
 
-    val pageColor = if (mono) MonoTokens.BG else if (dark) 0xFF0F0F14.toInt() else 0xFFF4F4F8.toInt()
-    val surface = if (mono) MonoTokens.SURFACE else if (dark) 0xFF1B1B24.toInt() else 0xFFFFFFFF.toInt()
-    val textColor = if (mono) MonoTokens.TEXT else if (dark) 0xFFF2F2F7.toInt() else 0xFF1A1A2E.toInt()
-    // All text/background pairs reach at least 4.5:1 contrast (WCAG AA).
-    val muted = if (mono) MonoTokens.MUTED else if (dark) 0xFF9A9AAE.toInt() else 0xFF5C5C70.toInt()
-    val accent = if (mono) MonoTokens.DISC else if (dark) 0xFF9A8CF8.toInt() else 0xFF5A49D6.toInt()
-    val onAccent = if (mono) MonoTokens.GLYPH else if (dark) 0xFF0F0F14.toInt() else 0xFFFFFFFF.toInt()
-    val accentSoft = if (mono) MonoTokens.DISC_OFF else if (dark) 0xFF241F3D.toInt() else 0xFFECEAFD.toInt()
-    val track = if (mono) MonoTokens.TRACK else if (dark) 0xFF2A2A36.toInt() else 0xFFE6E6EF.toInt()
-    val danger = if (mono) MonoTokens.DISC else if (dark) 0xFFFF6B6B.toInt() else 0xFFC4262C.toInt()
-    val dangerSoft = if (mono) MonoTokens.TRACK else if (dark) 0xFF3A1E22.toInt() else 0xFFFDECEC.toInt()
-    val success = if (mono) MonoTokens.DISC else if (dark) 0xFF4ADE80.toInt() else 0xFF1E7A4E.toInt()
-    val successSoft = if (mono) MonoTokens.TRACK else if (dark) 0xFF16301F.toInt() else 0xFFE6F6EE.toInt()
+    val look: Look = Look(
+        theme = store.theme,
+        style = style,
+        glass = store.glass,
+        backdrop = store.backdrop(style).let { if (it.kind == Backdrop.IMAGE && picture == null) it.copy(kind = Backdrop.STANDARD) else it },
+        systemDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
+        // Below Android 13 and in power saving the glass is replaced by opaque surfaces (DESIGN.md 6, Fallback).
+        reduced = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true,
+    )
 
-    /** Symbol in front of a status text; in black mode colour no longer tells ok from problem. */
-    fun mark(ok: Boolean): String = if (!mono) "" else if (ok) "✓ " else "✕ "
+    val pageColor = look.barTop
+    val surface = look.card
+    val textColor = look.text
+    val muted = look.muted
+    val accent = look.accent
+    val onAccent = look.onAccent
+    val accentSoft = look.lo
+    val track = look.track
+    val danger = look.danger
+    val dangerSoft = look.warnCard
+    val success = look.success
+    val successSoft = look.lo
+
+    /** Symbol in front of a status text, so ok and problem never differ by colour alone. */
+    fun mark(ok: Boolean): String = if (ok) "✓ " else "✕ "
 
     /** Text size chosen in the app on top of the phone's font size (1.0 = normal). */
     val textScale = store.textScale
@@ -77,46 +75,47 @@ class Ui(private val context: Context) {
     fun dp(value: Float): Int =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, context.resources.displayMetrics).toInt()
 
-    /** Colours the window and status bar to match the page. */
+    /** Colours the window and the bars to match the ground. */
     fun styleWindow(activity: Activity) {
         activity.actionBar?.hide()
         val window = activity.window
-        window.decorView.setBackgroundColor(pageColor)
+        window.decorView.setBackgroundColor(look.barTop)
         @Suppress("DEPRECATION")
-        window.statusBarColor = pageColor
+        window.statusBarColor = look.barTop
         @Suppress("DEPRECATION")
-        window.navigationBarColor = pageColor
+        window.navigationBarColor = look.barBottom
+        // The ground is always dark enough for light bar icons.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
                 WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-            window.insetsController?.setSystemBarsAppearance(if (dark) 0 else light, light)
-        } else if (!dark) {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility =
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            window.insetsController?.setSystemBarsAppearance(0, light)
         }
     }
 
-    /** Theme for [android.app.AlertDialog.Builder]: dark with grey buttons in black mode, the default otherwise. */
-    val dialogTheme: Int get() = if (mono) android.R.style.Theme_DeviceDefault_Dialog_Alert else 0
+    /** Theme for [AlertDialog.Builder]: light for black text (Tinted Dark), dark for white text. */
+    val dialogTheme: Int
+        get() = if (look.tinted) android.R.style.Theme_DeviceDefault_Light_Dialog_Alert else android.R.style.Theme_DeviceDefault_Dialog_Alert
 
-    fun styleDialog(dialog: android.app.AlertDialog) {
-        if (!mono) return
-        dialog.window?.setBackgroundDrawable(rounded(surface, 20f))
-        for (which in intArrayOf(android.app.AlertDialog.BUTTON_POSITIVE, android.app.AlertDialog.BUTTON_NEGATIVE)) {
+    fun styleDialog(dialog: AlertDialog) {
+        dialog.window?.setBackgroundDrawable(glass(look.opaqueCard, 20f))
+        for (which in intArrayOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE)) {
             dialog.getButton(which)?.setTextColor(accent)
         }
     }
 
+    /** The scrolling page on the ground. */
     fun page(vararg children: View): View {
         val content = column(*children).apply {
             setPadding(dp(20f), dp(24f), dp(20f), dp(32f))
         }
-        return ScrollView(context).apply {
+        val scroll = ScrollView(context).apply {
             fitsSystemWindows = true
             isVerticalScrollBarEnabled = false
-            setBackgroundColor(pageColor)
             addView(content)
+        }
+        return FrameLayout(context).apply {
+            addView(BackgroundView(context, look, picture), FrameLayout.LayoutParams(-1, -1))
+            addView(scroll, FrameLayout.LayoutParams(-1, -1))
         }
     }
 
@@ -135,17 +134,33 @@ class Ui(private val context: Context) {
         }
     }
 
-    fun card(vararg children: View, color: Int = surface): LinearLayout = column(*children).apply {
-        background = rounded(color, 20f)
+    /** A glass surface with [fill]; opaque fills also get a soft shadow. */
+    fun glass(fill: Int, radiusDp: Float): Drawable =
+        GlassDrawable(fill, dp(radiusDp).toFloat(), look.edge, look.highlight, dp(1f).toFloat())
+
+    /** Card: glass at level "voll", an opaque surface otherwise; a given [color] is always opaque. */
+    fun card(vararg children: View, color: Int? = null): LinearLayout = column(*children).apply {
+        background = glass(color ?: look.card, 20f)
+        if (color != null || !look.cardsGlass) elevation = dp(2f).toFloat()
         setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply { bottomMargin = dp(10f) }
     }
 
-    fun title(text: String) = label(text, 30f, textColor, bold = true)
+    /** Header bar on glass: titles never stand straight on the ground (DESIGN.md 6a). */
+    fun header(vararg children: View): LinearLayout = column(*children).apply {
+        background = glass(look.hi, 20f)
+        setPadding(dp(16f), dp(12f), dp(16f), dp(12f))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { bottomMargin = dp(14f) }
+    }
 
-    fun subtitle(text: String) = label(text, 15f, muted).apply { setPadding(0, dp(2f), 0, dp(20f)) }
+    fun header(title: String, subtitle: String) = header(
+        label(title, 30f, textColor, bold = true),
+        label(subtitle, 15f, muted).apply { setPadding(0, dp(2f), 0, 0) },
+    )
 
     fun cardTitle(text: String) = label(text, 18f, textColor, bold = true).apply { setPadding(0, 0, 0, dp(4f)) }
 
@@ -161,35 +176,22 @@ class Ui(private val context: Context) {
         if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
     }
 
-    /**
-     * Fold arrow of a section. In black mode a round disc: open is a light disc with a black
-     * glyph, closed a dark disc with a light glyph, so the state never rests on colour alone.
-     */
-    fun chevron() = label("", 18f, muted).apply {
-        if (mono) {
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(dp(32f), dp(32f)).apply { leftMargin = dp(10f) }
-        } else {
-            setPadding(dp(10f), 0, 0, 0)
-        }
-    }
+    /** Fold arrow of a section; the direction, not a colour, tells open from closed. */
+    fun chevron() = label("", 18f, muted).apply { setPadding(dp(10f), 0, 0, 0) }
 
     fun setChevron(view: TextView, open: Boolean) {
         view.text = if (open) "▴" else "▾"
-        if (!mono) return
-        view.setTextColor(if (open) onAccent else accent)
-        view.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (open) accent else accentSoft) }
     }
 
     fun spacer(heightDp: Float) = View(context).apply {
         layoutParams = LinearLayout.LayoutParams(1, dp(heightDp))
     }
 
-    fun primaryButton(text: String, onClick: () -> Unit) = button(text, accent, onAccent, onClick)
+    fun primaryButton(text: String, onClick: () -> Unit) = button(text, look.hi, onClick)
 
-    fun secondaryButton(text: String, onClick: () -> Unit) = button(text, accentSoft, accent, onClick)
+    fun secondaryButton(text: String, onClick: () -> Unit) = button(text, look.lo, onClick)
 
-    private fun button(text: String, fill: Int, textColor: Int, onClick: () -> Unit) = TextView(context).apply {
+    private fun button(text: String, fill: Int, onClick: () -> Unit) = TextView(context).apply {
         this.text = text
         setTextColor(textColor)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(15f))
@@ -197,7 +199,7 @@ class Ui(private val context: Context) {
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         gravity = Gravity.CENTER
         setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
-        background = ripple(rounded(fill, if (mono) 99f else 14f))
+        background = ripple(glass(fill, 99f))
         isClickable = true
         isFocusable = true
         setOnClickListener { onClick() }
@@ -210,44 +212,46 @@ class Ui(private val context: Context) {
     fun roundButton(text: String, description: String, onClick: () -> Unit) = TextView(context).apply {
         this.text = text
         contentDescription = description
-        setTextColor(accent)
+        setTextColor(textColor)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(20f))
         gravity = Gravity.CENTER
-        background = ripple(GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(accentSoft) })
+        background = ripple(glass(look.lo, 24f))
         isClickable = true
         isFocusable = true
         setOnClickListener { onClick() }
         layoutParams = LinearLayout.LayoutParams(dp(48f), dp(48f))
     }
 
-    /** Small coloured label like "Aktiv" or "Heute aufgehoben". */
+    /** Small label like "Aktiv" or "Heute aufgehoben". */
     fun pill(text: String, fill: Int, color: Int) = label(text, 12f, color, bold = true).apply {
-        background = rounded(fill, 99f)
+        background = glass(fill, 99f)
         setPadding(dp(10f), dp(4f), dp(10f), dp(4f))
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = dp(8f) }
     }
 
-    /** Two-option toggle; [onSelect] receives the chosen index. */
+    /** Toggle between a few options; [onSelect] receives the chosen index. The chosen one is a lighter capsule and bold. */
     fun segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit): LinearLayout {
         val bar = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            background = rounded(track, 14f)
+            background = glass(track, 99f)
             setPadding(dp(4f), dp(4f), dp(4f), dp(4f))
         }
         val items = options.map { option ->
             label(option, 14f, textColor, bold = true).apply {
                 gravity = Gravity.CENTER
-                setPadding(0, dp(10f), 0, dp(10f))
+                setPadding(dp(4f), dp(10f), dp(4f), dp(10f))
                 minHeight = dp(48f)
                 isClickable = true
                 isFocusable = true
+                contentDescription = option
             }
         }
         fun paint(index: Int) = items.forEachIndexed { i, item ->
-            item.background = if (i == index) rounded(if (mono) accent else surface, if (mono) 99f else 11f) else null
-            item.setTextColor(if (i == index) (if (mono) onAccent else accent) else muted)
+            item.background = if (i == index) glass(look.hi, 99f) else null
+            item.setTextColor(if (i == index) textColor else muted)
+            item.typeface = if (i == index) Typeface.create("sans-serif-medium", Typeface.BOLD) else Typeface.DEFAULT
         }
         items.forEachIndexed { i, item ->
             item.setOnClickListener { paint(i); onSelect(i) }
@@ -261,8 +265,8 @@ class Ui(private val context: Context) {
     fun switch(checked: Boolean) = Switch(context).apply {
         isChecked = checked
         val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
-        thumbTintList = ColorStateList(states, intArrayOf(if (mono) onAccent else accent, if (dark) muted else 0xFFFFFFFF.toInt()))
-        trackTintList = ColorStateList(states, intArrayOf(accent, track))
+        thumbTintList = ColorStateList(states, intArrayOf(accent, muted))
+        trackTintList = ColorStateList(states, intArrayOf(Look.argb(0.45f, accent), track))
     }
 
     fun input(hint: String) = EditText(context).apply {
@@ -271,12 +275,12 @@ class Ui(private val context: Context) {
         setTextColor(textColor)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(16f))
         minHeight = dp(48f)
-        background = rounded(track, 14f).apply { if (mono) setStroke(dp(1f), muted) }
+        background = glass(track, 14f)
         setPadding(dp(14f), dp(12f), dp(14f), dp(12f))
         inputType = InputType.TYPE_CLASS_TEXT
     }
 
-    fun progress(fraction: Float, color: Int = accent) = ProgressBarView(context, fraction, color, track).apply {
+    fun progress(fraction: Float, color: Int = accent) = ProgressBarView(context, fraction, color, danger, track).apply {
         layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(8f)).apply {
             topMargin = dp(6f)
             bottomMargin = dp(12f)
@@ -285,27 +289,26 @@ class Ui(private val context: Context) {
 
     /** Bars with a label underneath and the value on top, e.g. minutes per weekday. */
     fun barChart(labels: List<String>, values: List<Int>, highlight: Int) =
-        BarChartView(context, labels, values, highlight, accent, accentSoft, muted, textColor, sp(12f)).apply {
+        BarChartView(context, labels, values, highlight, accent, look.barSoft, muted, textColor, sp(12f)).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150f * textScale)).apply {
                 topMargin = dp(8f)
                 bottomMargin = dp(8f)
             }
         }
 
-    fun rounded(color: Int, radiusDp: Float) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = dp(radiusDp).toFloat()
-    }
+    /** Plain rounded fill for small things such as the challenge box. */
+    fun rounded(color: Int, radiusDp: Float): Drawable = glass(color, radiusDp)
 
-    private fun ripple(content: GradientDrawable) =
-        RippleDrawable(ColorStateList.valueOf(0x22000000), content, null)
+    private fun ripple(content: Drawable) =
+        RippleDrawable(ColorStateList.valueOf(Look.argb(0.2f, textColor)), content, null)
 }
 
-/** Rounded progress bar; turns red when full. */
+/** Rounded progress bar; a full bar takes [fullColor] (in Tinted Dark that is black again, so its length says it). */
 class ProgressBarView(
     context: Context,
     private val fraction: Float,
     private val color: Int,
+    private val fullColor: Int,
     private val trackColor: Int,
 ) : View(context) {
 
@@ -320,7 +323,7 @@ class ProgressBarView(
         val f = fraction.coerceIn(0f, 1f)
         if (f <= 0f) return
         rect.right = (width * f).coerceAtLeast(height.toFloat())
-        paint.color = if (f >= 1f) 0xFFE5484D.toInt() else color
+        paint.color = if (f >= 1f) fullColor else color
         canvas.drawRoundRect(rect, r, r, paint)
     }
 }

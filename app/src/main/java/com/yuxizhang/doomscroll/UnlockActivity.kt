@@ -104,8 +104,7 @@ class UnlockActivity : Activity() {
 
         setContentView(
             ui.page(
-                ui.title("Bist du sicher?"),
-                ui.subtitle("Kurz innehalten hilft oft schon."),
+                ui.header("Bist du sicher?", "Kurz innehalten hilft oft schon."),
                 ui.card(
                     ui.body(instruction, ui.textColor),
                     ui.spacer(8f),

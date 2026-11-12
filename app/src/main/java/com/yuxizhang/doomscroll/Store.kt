@@ -36,7 +36,13 @@ class Store private constructor(context: Context) {
         val from = prefs.getInt(KEY_SCHEMA, 0)
         if (from >= SCHEMA) return
         // 0 → 1: nothing changes, the schema number is only stored from now on.
-        prefs.edit().putInt(KEY_SCHEMA, SCHEMA).apply()
+        val editor = prefs.edit()
+        // 1 → 2: the early black mode "mono" became the glass style Tinted Dark.
+        if (from < 2) {
+            prefs.getString(KEY_MONO, null)?.let { legacyStyle(it) }?.let { editor.putString(KEY_STYLE, it.key) }
+            editor.remove(KEY_MONO)
+        }
+        editor.putInt(KEY_SCHEMA, SCHEMA).apply()
     }
 
     /** Settings, hints and history for the backup; today's counters, unlocks and protection windows stay out. */
@@ -60,18 +66,18 @@ class Store private constructor(context: Context) {
                 key.startsWith(HISTORY) -> values.optLong(key, -1).takeIf { it >= 0 }?.let { editor.putLong(key, it) }
                 key.startsWith("hint_") -> editor.putBoolean(key, values.optBoolean(key, true))
                 key == KEY_TEXT_SCALE -> editor.putInt(key, values.optInt(key, 100).coerceIn(80, 200))
-                key == KEY_MONO -> parseMono(values.optString(key))?.let { editor.putString(key, monoValue(it)) }
                 // Own words are only ever added, never dropped by an import.
                 key == KEY_ADULT_WORDS -> values.optJSONArray(key)?.let { arr ->
                     editor.putStringSet(key, adultWords + (0 until arr.length()).mapNotNull { cleanWord(arr.optString(it)) })
                 }
             }
         }
+        designFromBackup(values).forEach { (key, value) -> editor.putString(key, value) }
         editor.apply()
     }
 
     private fun isSafeKey(key: String) =
-        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key == KEY_MONO || key == KEY_ADULT_WORDS
+        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key in DESIGN_KEYS || key == KEY_ADULT_WORDS
 
     var perAppMode: Boolean
         get() = prefs.getBoolean(KEY_PER_APP, false)
@@ -170,10 +176,26 @@ class Store private constructor(context: Context) {
 
     val textScale: Float get() = textScalePercent / 100f
 
-    /** Black mode (DESIGN.md 6a): grey scale on near-black. Saved as "aus" or "an", off by default. */
-    var mono: Boolean
-        get() = parseMono(prefs.getString(KEY_MONO, null)) ?: false
-        set(value) = prefs.edit().putString(KEY_MONO, monoValue(value)).apply()
+    /** Dark mode: follow the phone, or always light or dark (DESIGN.md 6a). */
+    var theme: ThemeMode
+        get() = parseKey(ThemeMode.entries.toTypedArray(), prefs.getString(KEY_THEME, null)) ?: ThemeMode.SYSTEM
+        set(value) = prefs.edit().putString(KEY_THEME, value.key).apply()
+
+    /** Which surfaces are glass (DESIGN.md 6). */
+    var glass: GlassLevel
+        get() = parseKey(GlassLevel.entries.toTypedArray(), prefs.getString(KEY_GLASS, null)) ?: GlassLevel.EINFACH
+        set(value) = prefs.edit().putString(KEY_GLASS, value.key).apply()
+
+    /** Clear glass or Tinted Dark (DESIGN.md 6a). */
+    var glassStyle: GlassStyle
+        get() = parseKey(GlassStyle.entries.toTypedArray(), prefs.getString(KEY_STYLE, null)) ?: GlassStyle.KLAR
+        set(value) = prefs.edit().putString(KEY_STYLE, value.key).apply()
+
+    /** What lies behind the glass; each glass style remembers its own. */
+    fun backdrop(style: GlassStyle): Backdrop = Backdrop.fromJson(prefs.getString(backdropKey(style), null)) ?: Backdrop()
+
+    fun setBackdrop(style: GlassStyle, backdrop: Backdrop) =
+        prefs.edit().putString(backdropKey(style), backdrop.toJson()).apply()
 
     /** Own words for the porn blocker, e.g. "deepfake"; blocked in browsers like "porn". */
     val adultWords: Set<String>
@@ -290,11 +312,16 @@ class Store private constructor(context: Context) {
         private const val KEY_GLOBAL_LIMIT = "global_limit"
         private const val KEY_DAY = "day"
         /** Version of the saved data; raise it together with a step in [migrate]. */
-        const val SCHEMA = 1
+        const val SCHEMA = 2
         private const val KEY_SCHEMA = "schema_version"
         private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_ADULT_WORDS = "adult_words"
-        const val KEY_MONO = "mono"
+        const val KEY_THEME = "theme"
+        const val KEY_GLASS = "glass"
+        const val KEY_STYLE = "glassStil"
+        const val KEY_MONO = "mono" // early black mode, only read to migrate
+        fun backdropKey(style: GlassStyle) = "hintergrund.${style.key}"
+        private val DESIGN_KEYS = setOf(KEY_THEME, KEY_GLASS, KEY_STYLE) + GlassStyle.entries.map(::backdropKey)
         private const val KEY_PROTECTION_UNTIL = "protection_until"
         private const val KEY_ADMIN_SETUP_UNTIL = "admin_setup_until"
 
@@ -302,13 +329,28 @@ class Store private constructor(context: Context) {
         private val LIMIT_KEYS = setOf(KEY_PER_APP, KEY_GLOBAL_LIMIT, KEY_WARN, KEY_QUIET, KEY_QUIET_START, KEY_QUIET_END)
         private val LIMIT_PREFIXES = listOf("limit_", "enabled_")
 
-        fun monoValue(on: Boolean): String = if (on) "an" else "aus"
-
-        /** The mode saved as text, or null when [raw] is neither "an" nor "aus". */
-        fun parseMono(raw: String?): Boolean? = when (raw) {
-            "an" -> true
-            "aus" -> false
+        /** The early black mode "mono" as glass style: on is Tinted Dark, off is Klar, anything else is unknown. */
+        fun legacyStyle(mono: String?): GlassStyle? = when (mono) {
+            "an" -> GlassStyle.TINTED_DARK
+            "aus" -> GlassStyle.KLAR
             else -> null
+        }
+
+        /**
+         * The design settings found in a backup, as the text to store per key. Unknown or broken
+         * entries are skipped, so older backups leave the setting alone; a backup with the old
+         * "mono" and no "glassStil" is migrated.
+         */
+        fun designFromBackup(values: JSONObject): Map<String, String> {
+            val out = linkedMapOf<String, String>()
+            parseKey(ThemeMode.entries.toTypedArray(), values.optString(KEY_THEME))?.let { out[KEY_THEME] = it.key }
+            parseKey(GlassLevel.entries.toTypedArray(), values.optString(KEY_GLASS))?.let { out[KEY_GLASS] = it.key }
+            (parseKey(GlassStyle.entries.toTypedArray(), values.optString(KEY_STYLE))
+                ?: legacyStyle(values.optString(KEY_MONO)))?.let { out[KEY_STYLE] = it.key }
+            for (style in GlassStyle.entries) {
+                Backdrop.fromJson(values.optString(backdropKey(style)))?.let { out[backdropKey(style)] = it.toJson() }
+            }
+            return out
         }
 
         /** Lower case, trimmed, at least 2 characters so a single letter cannot block every page. */

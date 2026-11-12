@@ -203,8 +203,7 @@ class MainActivity : Activity() {
         }
         setContentView(
             ui.page(
-                ui.title("Willkommen"),
-                ui.subtitle("Schritt $setupStep von 2 · Lass uns den Blocker einrichten."),
+                ui.header("Willkommen", "Schritt $setupStep von 2 · Lass uns den Blocker einrichten."),
                 content,
             )
         )
@@ -228,6 +227,10 @@ class MainActivity : Activity() {
         store = Store.get(this)
         if (!::ui.isInitialized) ui = Ui(this)
         val uri = data?.data
+        if (requestCode == REQUEST_PICTURE) {
+            if (resultCode == RESULT_OK && uri != null) usePicture(uri) else render()
+            return
+        }
         if (requestCode == REQUEST_EXPORT || requestCode == REQUEST_IMPORT) {
             if (resultCode == RESULT_OK && uri != null) {
                 if (requestCode == REQUEST_EXPORT) exportBackup(uri) else importBackup(uri)
@@ -310,10 +313,10 @@ class MainActivity : Activity() {
         setContentView(
             ui.page(
                 *listOfNotNull(
-                    ui.row(
+                    ui.header(ui.row(
                         ui.label("Doomscroll Blocker", 24f, ui.textColor, bold = true),
-                        if (isServiceEnabled()) ui.pill("${ui.mark(true)}AN", ui.successSoft, ui.success) else ui.pill("${ui.mark(false)}AUS", ui.surface, ui.danger),
-                    ).apply { setPadding(0, 0, 0, ui.dp(14f)) },
+                        ui.pill(if (isServiceEnabled()) "${ui.mark(true)}AN" else "${ui.mark(false)}AUS", ui.successSoft, if (isServiceEnabled()) ui.success else ui.danger),
+                    )),
                     if (isServiceEnabled()) null else statusCard(),
                     todayCard(),
                     section("week", weekCard()),
@@ -558,7 +561,7 @@ class MainActivity : Activity() {
 
     private fun backupCard(): LinearLayout = ui.card(
         ui.cardTitle("Datensicherung"),
-        ui.body("Speichert Limits, Ruhezeiten, Hinweise, Schriftgröße, Schwarz-Modus und den Verlauf der letzten 30 Tage in einer Datei, z. B. für ein neues Handy. Lockert der Import ein Limit, musst du den Satz abtippen. Eigene Wörter des Porno-Blockers fügt ein Import nur hinzu, nie entfernt er welche."),
+        ui.body("Speichert Limits, Ruhezeiten, Hinweise, Schriftgröße, Dunkler Modus, Glas-Einstellungen, Hintergrund-Auswahl (ohne das Bild) und den Verlauf der letzten 30 Tage in einer Datei, z. B. für ein neues Handy. Lockert der Import ein Limit, musst du den Satz abtippen. Eigene Wörter des Porno-Blockers fügt ein Import nur hinzu, nie entfernt er welche."),
         ui.secondaryButton("Exportieren") {
             @Suppress("DEPRECATION")
             startActivityForResult(
@@ -598,7 +601,7 @@ class MainActivity : Activity() {
         return card
     }
 
-    /** Text size inside this app and its popups, on top of the phone's own font size. */
+    /** Text size, dark mode and the Liquid Glass settings (level, style, background). */
     private fun displayCard(): LinearLayout {
         val selected = TEXT_SIZES.indexOfFirst { it.second == store.textScalePercent }.coerceAtLeast(0)
         return ui.card(
@@ -609,21 +612,120 @@ class MainActivity : Activity() {
                 ui = Ui(this)
                 render()
             },
-            ui.spacer(8f),
-            ui.row(
-                ui.label("Schwarz-Modus", 16f, ui.textColor, bold = true),
-                ui.switch(store.mono).apply {
-                    contentDescription = "Schwarz-Modus"
-                    setOnCheckedChangeListener { _, on ->
-                        store.mono = on
-                        ui = Ui(this@MainActivity)
-                        ui.styleWindow(this@MainActivity)
-                        render()
-                    }
-                },
-            ).apply { minimumHeight = ui.dp(48f) },
-            ui.body("Fast schwarzer Hintergrund, nur Grautöne und runde Scheiben statt Farben. Aktiv ist hell, inaktiv dunkel; Zustände zeigen zusätzlich ein Symbol."),
+            ui.spacer(12f),
+            ui.label("Dunkler Modus", 16f, ui.textColor, bold = true),
+            ui.body(if (ui.look.tinted) "Tinted Dark ist immer dunkel. Deine Wahl gilt wieder beim Glas-Stil „Klar“." else "„System“ folgt dem Handy."),
+            ui.segmented(THEMES.map { it.second }, THEMES.indexOfFirst { it.first == store.theme }) { i ->
+                store.theme = THEMES[i].first
+                restyle()
+            },
+            ui.spacer(12f),
+            ui.label("Glas-Effekte", 16f, ui.textColor, bold = true),
+            ui.body(
+                if (ui.look.reduced) "Auf diesem Handy (Android unter 13 oder Energiesparmodus) bleiben die Flächen deckend. Die Wahl wird gespeichert."
+                else "Aus: alles deckend. Einfach: nur Knöpfe und Kopfleiste sind Glas. Voll: auch die Karten.",
+            ),
+            ui.segmented(GLASS_LEVELS.map { it.second }, GLASS_LEVELS.indexOfFirst { it.first == store.glass }) { i ->
+                store.glass = GLASS_LEVELS[i].first
+                restyle()
+            },
+            ui.spacer(12f),
+            ui.label("Glas-Stil", 16f, ui.textColor, bold = true),
+            ui.body("Klar: weiße Schrift auf farbigem Glas. Tinted Dark: helles Glas auf dunklem Grund mit schwarzer Schrift."),
+            ui.segmented(GLASS_STYLES.map { it.second }, GLASS_STYLES.indexOfFirst { it.first == store.glassStyle }) { i ->
+                store.glassStyle = GLASS_STYLES[i].first
+                restyle()
+            },
+            ui.spacer(12f),
+            backdropBlock(),
         )
+    }
+
+    /** Redraws the screen after a design setting changed. */
+    private fun restyle() {
+        ui = Ui(this)
+        ui.styleWindow(this)
+        render()
+    }
+
+    /** The ground behind the glass; each glass style keeps its own. */
+    private fun backdropBlock(): View {
+        val style = store.glassStyle
+        val current = store.backdrop(style)
+        fun change(next: Backdrop) {
+            store.setBackdrop(style, next)
+            restyle()
+        }
+        val box = ui.column(
+            ui.label("Hintergrund (${GLASS_STYLES.first { it.first == style }.second})", 16f, ui.textColor, bold = true),
+            ui.body(if (style == GlassStyle.TINTED_DARK) "Wird bei Tinted Dark automatisch abgedunkelt, damit das Glas lesbar bleibt." else "Zu helle Farben und Bilder werden abgedunkelt, damit die Schrift lesbar bleibt."),
+            ui.segmented(BACKDROP_KINDS.map { it.second }, BACKDROP_KINDS.indexOfFirst { it.first == current.kind }.coerceAtLeast(0)) { i ->
+                val kind = BACKDROP_KINDS[i].first
+                if (kind == Backdrop.IMAGE && BackdropImage.load(this, style) == null) pickPicture() else change(current.copy(kind = kind))
+            },
+        )
+        when (current.kind) {
+            Backdrop.GRADIENT -> {
+                val names = Look.GRADIENTS.entries.toList()
+                box.addView(ui.spacer(8f))
+                box.addView(ui.segmented(names.map { it.value.second }, names.indexOfFirst { it.key == current.gradient }.coerceAtLeast(0)) { i ->
+                    change(current.copy(gradient = names[i].key))
+                })
+            }
+            Backdrop.COLOR -> {
+                val field = ui.input("#RRGGBB").apply {
+                    setText(String.format("#%06X", current.color and 0xFFFFFF))
+                    filters = arrayOf(InputFilter.LengthFilter(7))
+                }
+                box.addView(ui.spacer(8f))
+                box.addView(field)
+                box.addView(ui.secondaryButton("Farbe übernehmen") {
+                    val color = Backdrop.parseColor(field.text.toString())
+                    if (color == null) Toast.makeText(this, "Bitte eine Farbe wie #1668B5 eingeben.", Toast.LENGTH_SHORT).show()
+                    else change(current.copy(color = color))
+                })
+            }
+            Backdrop.IMAGE -> {
+                box.addView(ui.secondaryButton("Anderes Bild wählen") { pickPicture() })
+                box.addView(ui.secondaryButton("Bild entfernen") {
+                    BackdropImage.remove(this, style)
+                    change(current.copy(kind = Backdrop.STANDARD))
+                })
+            }
+        }
+        if (current.kind != Backdrop.COLOR) {
+            box.addView(ui.row(
+                ui.label("Farbkleckse", 15f, ui.textColor, bold = true),
+                ui.switch(current.blobs).apply {
+                    contentDescription = "Farbkleckse"
+                    setOnCheckedChangeListener { _, on -> change(current.copy(blobs = on)) }
+                },
+            ).apply {
+                minimumHeight = ui.dp(48f)
+                setPadding(0, ui.dp(8f), 0, 0)
+            })
+        }
+        return box
+    }
+
+    private fun pickPicture() {
+        @Suppress("DEPRECATION")
+        startActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"),
+            REQUEST_PICTURE,
+        )
+    }
+
+    /** Copies the chosen picture into the app and makes it the ground of the current glass style. */
+    private fun usePicture(uri: Uri) {
+        val style = store.glassStyle
+        if (BackdropImage.save(this, style, uri)) {
+            store.setBackdrop(style, store.backdrop(style).copy(kind = Backdrop.IMAGE))
+            openSections.add("display")
+            restyle()
+        } else {
+            Toast.makeText(this, "Konnte das Bild nicht lesen.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun adultCard(): LinearLayout {
@@ -847,6 +949,13 @@ class MainActivity : Activity() {
         private const val REQUEST_NOTIFICATIONS = 5
         private const val REQUEST_EXPORT = 6
         private const val REQUEST_IMPORT = 7
+        private const val REQUEST_PICTURE = 8
+        private val THEMES = listOf(ThemeMode.SYSTEM to "System", ThemeMode.HELL to "Hell", ThemeMode.DUNKEL to "Dunkel")
+        private val GLASS_LEVELS = listOf(GlassLevel.AUS to "Aus", GlassLevel.EINFACH to "Einfach", GlassLevel.VOLL to "Voll")
+        private val GLASS_STYLES = listOf(GlassStyle.KLAR to "Klar", GlassStyle.TINTED_DARK to "Tinted Dark")
+        private val BACKDROP_KINDS = listOf(
+            Backdrop.STANDARD to "Standard", Backdrop.GRADIENT to "Verlauf", Backdrop.COLOR to "Einfarbig", Backdrop.IMAGE to "Bild",
+        )
         private const val MAX_BACKUP_BYTES = 1 shl 20
 
         /** The version the update popup was shown for in this app start. */
