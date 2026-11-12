@@ -23,30 +23,53 @@ import android.widget.Switch
 import android.widget.TextView
 
 /**
+ * Tokens of the black mode (DESIGN.md 6a): near-black page, light grey discs with a black glyph,
+ * dark grey discs with a light glyph, no colour. The values are estimated from the reference, not measured.
+ */
+object MonoTokens {
+    const val BG = 0xFF0A0D12.toInt()
+    const val SURFACE = 0xFF171A20.toInt()
+    const val TRACK = 0xFF2C2F35.toInt()
+    const val DISC = 0xFFD4D4D4.toInt()
+    const val DISC_OFF = 0xFF3C3C3C.toInt()
+    const val GLYPH = 0xFF000000.toInt()
+    const val TEXT = 0xFFFFFFFF.toInt()
+    const val MUTED = 0xFFB4B4B4.toInt()
+}
+
+/**
  * Small design system built from plain framework views, so the app needs no layout files and
  * no extra libraries. Colours follow the phone's light or dark mode.
  */
 class Ui(private val context: Context) {
 
-    private val dark =
+    private val store = Store.get(context)
+
+    /** Black mode on: grey scale only, always dark whatever the phone says. */
+    val mono = store.mono
+
+    private val dark = mono ||
         (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
-    val pageColor = if (dark) 0xFF0F0F14.toInt() else 0xFFF4F4F8.toInt()
-    val surface = if (dark) 0xFF1B1B24.toInt() else 0xFFFFFFFF.toInt()
-    val textColor = if (dark) 0xFFF2F2F7.toInt() else 0xFF1A1A2E.toInt()
+    val pageColor = if (mono) MonoTokens.BG else if (dark) 0xFF0F0F14.toInt() else 0xFFF4F4F8.toInt()
+    val surface = if (mono) MonoTokens.SURFACE else if (dark) 0xFF1B1B24.toInt() else 0xFFFFFFFF.toInt()
+    val textColor = if (mono) MonoTokens.TEXT else if (dark) 0xFFF2F2F7.toInt() else 0xFF1A1A2E.toInt()
     // All text/background pairs reach at least 4.5:1 contrast (WCAG AA).
-    val muted = if (dark) 0xFF9A9AAE.toInt() else 0xFF5C5C70.toInt()
-    val accent = if (dark) 0xFF9A8CF8.toInt() else 0xFF5A49D6.toInt()
-    val onAccent = if (dark) 0xFF0F0F14.toInt() else 0xFFFFFFFF.toInt()
-    val accentSoft = if (dark) 0xFF241F3D.toInt() else 0xFFECEAFD.toInt()
-    val track = if (dark) 0xFF2A2A36.toInt() else 0xFFE6E6EF.toInt()
-    val danger = if (dark) 0xFFFF6B6B.toInt() else 0xFFC4262C.toInt()
-    val dangerSoft = if (dark) 0xFF3A1E22.toInt() else 0xFFFDECEC.toInt()
-    val success = if (dark) 0xFF4ADE80.toInt() else 0xFF1E7A4E.toInt()
-    val successSoft = if (dark) 0xFF16301F.toInt() else 0xFFE6F6EE.toInt()
+    val muted = if (mono) MonoTokens.MUTED else if (dark) 0xFF9A9AAE.toInt() else 0xFF5C5C70.toInt()
+    val accent = if (mono) MonoTokens.DISC else if (dark) 0xFF9A8CF8.toInt() else 0xFF5A49D6.toInt()
+    val onAccent = if (mono) MonoTokens.GLYPH else if (dark) 0xFF0F0F14.toInt() else 0xFFFFFFFF.toInt()
+    val accentSoft = if (mono) MonoTokens.DISC_OFF else if (dark) 0xFF241F3D.toInt() else 0xFFECEAFD.toInt()
+    val track = if (mono) MonoTokens.TRACK else if (dark) 0xFF2A2A36.toInt() else 0xFFE6E6EF.toInt()
+    val danger = if (mono) MonoTokens.DISC else if (dark) 0xFFFF6B6B.toInt() else 0xFFC4262C.toInt()
+    val dangerSoft = if (mono) MonoTokens.TRACK else if (dark) 0xFF3A1E22.toInt() else 0xFFFDECEC.toInt()
+    val success = if (mono) MonoTokens.DISC else if (dark) 0xFF4ADE80.toInt() else 0xFF1E7A4E.toInt()
+    val successSoft = if (mono) MonoTokens.TRACK else if (dark) 0xFF16301F.toInt() else 0xFFE6F6EE.toInt()
+
+    /** Symbol in front of a status text; in black mode colour no longer tells ok from problem. */
+    fun mark(ok: Boolean): String = if (!mono) "" else if (ok) "✓ " else "✕ "
 
     /** Text size chosen in the app on top of the phone's font size (1.0 = normal). */
-    val textScale = Store.get(context).textScale
+    val textScale = store.textScale
 
     /** [value] in sp, scaled by the app's text size setting. */
     fun sp(value: Float): Float = value * textScale
@@ -71,6 +94,17 @@ class Ui(private val context: Context) {
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility =
                 View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
+    }
+
+    /** Theme for [android.app.AlertDialog.Builder]: dark with grey buttons in black mode, the default otherwise. */
+    val dialogTheme: Int get() = if (mono) android.R.style.Theme_DeviceDefault_Dialog_Alert else 0
+
+    fun styleDialog(dialog: android.app.AlertDialog) {
+        if (!mono) return
+        dialog.window?.setBackgroundDrawable(rounded(surface, 20f))
+        for (which in intArrayOf(android.app.AlertDialog.BUTTON_POSITIVE, android.app.AlertDialog.BUTTON_NEGATIVE)) {
+            dialog.getButton(which)?.setTextColor(accent)
         }
     }
 
@@ -127,6 +161,26 @@ class Ui(private val context: Context) {
         if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
     }
 
+    /**
+     * Fold arrow of a section. In black mode a round disc: open is a light disc with a black
+     * glyph, closed a dark disc with a light glyph, so the state never rests on colour alone.
+     */
+    fun chevron() = label("", 18f, muted).apply {
+        if (mono) {
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dp(32f), dp(32f)).apply { leftMargin = dp(10f) }
+        } else {
+            setPadding(dp(10f), 0, 0, 0)
+        }
+    }
+
+    fun setChevron(view: TextView, open: Boolean) {
+        view.text = if (open) "▴" else "▾"
+        if (!mono) return
+        view.setTextColor(if (open) onAccent else accent)
+        view.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (open) accent else accentSoft) }
+    }
+
     fun spacer(heightDp: Float) = View(context).apply {
         layoutParams = LinearLayout.LayoutParams(1, dp(heightDp))
     }
@@ -143,7 +197,7 @@ class Ui(private val context: Context) {
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         gravity = Gravity.CENTER
         setPadding(dp(16f), dp(14f), dp(16f), dp(14f))
-        background = ripple(rounded(fill, 14f))
+        background = ripple(rounded(fill, if (mono) 99f else 14f))
         isClickable = true
         isFocusable = true
         setOnClickListener { onClick() }
@@ -192,8 +246,8 @@ class Ui(private val context: Context) {
             }
         }
         fun paint(index: Int) = items.forEachIndexed { i, item ->
-            item.background = if (i == index) rounded(surface, 11f) else null
-            item.setTextColor(if (i == index) accent else muted)
+            item.background = if (i == index) rounded(if (mono) accent else surface, if (mono) 99f else 11f) else null
+            item.setTextColor(if (i == index) (if (mono) onAccent else accent) else muted)
         }
         items.forEachIndexed { i, item ->
             item.setOnClickListener { paint(i); onSelect(i) }
@@ -207,7 +261,7 @@ class Ui(private val context: Context) {
     fun switch(checked: Boolean) = Switch(context).apply {
         isChecked = checked
         val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
-        thumbTintList = ColorStateList(states, intArrayOf(accent, if (dark) muted else 0xFFFFFFFF.toInt()))
+        thumbTintList = ColorStateList(states, intArrayOf(if (mono) onAccent else accent, if (dark) muted else 0xFFFFFFFF.toInt()))
         trackTintList = ColorStateList(states, intArrayOf(accent, track))
     }
 
@@ -217,7 +271,7 @@ class Ui(private val context: Context) {
         setTextColor(textColor)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(16f))
         minHeight = dp(48f)
-        background = rounded(track, 14f)
+        background = rounded(track, 14f).apply { if (mono) setStroke(dp(1f), muted) }
         setPadding(dp(14f), dp(12f), dp(14f), dp(12f))
         inputType = InputType.TYPE_CLASS_TEXT
     }

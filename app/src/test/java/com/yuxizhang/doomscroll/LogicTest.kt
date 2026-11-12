@@ -211,4 +211,62 @@ class BackupTest {
     fun missingValuesGiveAnEmptyBackup() {
         assertEquals(0, Backup.read("""{"app":"com.yuxizhang.doomscroll","schema":1}""").getOrThrow().length())
     }
+
+    @Test
+    fun monoSurvivesTheBackupRoundTrip() {
+        for (on in listOf(true, false)) {
+            val text = """{"app":"com.yuxizhang.doomscroll","schema":${Store.SCHEMA},"values":{"mono":"${Store.monoValue(on)}"}}"""
+            val raw = Backup.read(text).getOrThrow().optString(Store.KEY_MONO)
+            assertEquals(on, Store.parseMono(raw))
+        }
+    }
+
+    @Test
+    fun olderBackupsWithoutMonoLeaveTheModeAlone() {
+        val values = Backup.read("""{"app":"com.yuxizhang.doomscroll","values":{"global_limit":20}}""").getOrThrow()
+        assertNull(Store.parseMono(values.optString(Store.KEY_MONO)))
+    }
+}
+
+class MonoTest {
+
+    @Test
+    fun onlyAnAndAusAreKnown() {
+        assertEquals(true, Store.parseMono("an"))
+        assertEquals(false, Store.parseMono("aus"))
+        assertNull(Store.parseMono(null))
+        assertNull(Store.parseMono(""))
+        assertNull(Store.parseMono("true"))
+    }
+
+    @Test
+    fun monoValueRoundTrips() {
+        assertEquals("an", Store.monoValue(true))
+        assertEquals("aus", Store.monoValue(false))
+    }
+
+    @Test
+    fun tokenPairsReachTheContrastOfDesignMd() {
+        val bg = MonoTokens.BG
+        assertTrue(contrast(MonoTokens.TEXT, bg) >= 4.5)
+        assertTrue(contrast(MonoTokens.MUTED, MonoTokens.SURFACE) >= 4.5)
+        assertTrue(contrast(MonoTokens.GLYPH, MonoTokens.DISC) >= 4.5)
+        assertTrue(contrast(MonoTokens.DISC, MonoTokens.DISC_OFF) >= 4.5)
+        assertTrue(contrast(MonoTokens.DISC, MonoTokens.TRACK) >= 4.5)
+        assertTrue(contrast(MonoTokens.MUTED, MonoTokens.TRACK) >= 4.5)
+        assertTrue(contrast(MonoTokens.DISC, bg) >= 3.0)
+    }
+
+    private fun luminance(argb: Int): Double {
+        fun channel(shift: Int): Double {
+            val c = ((argb shr shift) and 0xFF) / 255.0
+            return if (c <= 0.03928) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
+    }
+
+    private fun contrast(a: Int, b: Int): Double {
+        val (hi, lo) = luminance(a).let { x -> luminance(b).let { y -> maxOf(x, y) to minOf(x, y) } }
+        return (hi + 0.05) / (lo + 0.05)
+    }
 }

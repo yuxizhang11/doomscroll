@@ -60,6 +60,7 @@ class Store private constructor(context: Context) {
                 key.startsWith(HISTORY) -> values.optLong(key, -1).takeIf { it >= 0 }?.let { editor.putLong(key, it) }
                 key.startsWith("hint_") -> editor.putBoolean(key, values.optBoolean(key, true))
                 key == KEY_TEXT_SCALE -> editor.putInt(key, values.optInt(key, 100).coerceIn(80, 200))
+                key == KEY_MONO -> parseMono(values.optString(key))?.let { editor.putString(key, monoValue(it)) }
                 // Own words are only ever added, never dropped by an import.
                 key == KEY_ADULT_WORDS -> values.optJSONArray(key)?.let { arr ->
                     editor.putStringSet(key, adultWords + (0 until arr.length()).mapNotNull { cleanWord(arr.optString(it)) })
@@ -70,7 +71,7 @@ class Store private constructor(context: Context) {
     }
 
     private fun isSafeKey(key: String) =
-        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key == KEY_ADULT_WORDS
+        key.startsWith(HISTORY) || key.startsWith("hint_") || key == KEY_TEXT_SCALE || key == KEY_MONO || key == KEY_ADULT_WORDS
 
     var perAppMode: Boolean
         get() = prefs.getBoolean(KEY_PER_APP, false)
@@ -168,6 +169,11 @@ class Store private constructor(context: Context) {
         set(value) = prefs.edit().putInt(KEY_TEXT_SCALE, value.coerceIn(80, 200)).apply()
 
     val textScale: Float get() = textScalePercent / 100f
+
+    /** Black mode (DESIGN.md 6a): grey scale on near-black. Saved as "aus" or "an", off by default. */
+    var mono: Boolean
+        get() = parseMono(prefs.getString(KEY_MONO, null)) ?: false
+        set(value) = prefs.edit().putString(KEY_MONO, monoValue(value)).apply()
 
     /** Own words for the porn blocker, e.g. "deepfake"; blocked in browsers like "porn". */
     val adultWords: Set<String>
@@ -288,12 +294,22 @@ class Store private constructor(context: Context) {
         private const val KEY_SCHEMA = "schema_version"
         private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_ADULT_WORDS = "adult_words"
+        const val KEY_MONO = "mono"
         private const val KEY_PROTECTION_UNTIL = "protection_until"
         private const val KEY_ADMIN_SETUP_UNTIL = "admin_setup_until"
 
         /** Keys of the limit settings, which only change through the screen's save. */
         private val LIMIT_KEYS = setOf(KEY_PER_APP, KEY_GLOBAL_LIMIT, KEY_WARN, KEY_QUIET, KEY_QUIET_START, KEY_QUIET_END)
         private val LIMIT_PREFIXES = listOf("limit_", "enabled_")
+
+        fun monoValue(on: Boolean): String = if (on) "an" else "aus"
+
+        /** The mode saved as text, or null when [raw] is neither "an" nor "aus". */
+        fun parseMono(raw: String?): Boolean? = when (raw) {
+            "an" -> true
+            "aus" -> false
+            else -> null
+        }
 
         /** Lower case, trimmed, at least 2 characters so a single letter cannot block every page. */
         fun cleanWord(word: String): String? = word.trim().lowercase().takeIf { it.length >= 2 }

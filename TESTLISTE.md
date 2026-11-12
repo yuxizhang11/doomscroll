@@ -3,6 +3,16 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## Nächstes Release (Schwarz-Modus)
+
+- [ ] Einstellungen, Darstellung: Schalter „Schwarz-Modus“ ist standardmäßig aus; die App sieht aus wie vorher.
+- [ ] Schalter an: Hintergrund fast schwarz, nur Grautöne, auch bei hellem Handy-Modus; Statusleiste und Dialoge (Was ist neu, Update, Uhrzeit) passen dazu.
+- [ ] Schwarz-Modus: Knöpfe und Minuten-Plus/Minus sind runde helle Scheiben mit schwarzer Schrift bzw. dunkle Scheiben mit heller Schrift; die gewählte Schriftgröße ist hell hinterlegt.
+- [ ] Schwarz-Modus: aufgeklappte Abschnitte haben einen hellen Pfeil-Kreis, zugeklappte einen dunklen; „AN“/„AUS“ trägt ein Häkchen bzw. Kreuz, „Blocker ist aus“ ein Kreuz.
+- [ ] Alles lesbar, auch Hinweise, Eingabefelder (mit Rahmen) und die Sperr-Seite zum Abtippen.
+- [ ] Datensicherung: mit Schwarz-Modus an exportieren, App-Daten leeren, importieren: Modus ist wieder an; alte Sicherung ohne den Eintrag lässt den Modus unverändert.
+- [ ] Android 13 oder neuer: Themed Icons einschalten, App-Symbol erscheint einfarbig.
+
 ## 1.28
 
 - [ ] Porno-Blocker: Schalter steht auf „an“ und lässt sich nicht antippen, kein Code-Feld, kein „Heute aufheben“.

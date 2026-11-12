@@ -95,11 +95,11 @@ class MainActivity : Activity() {
             val lines = items.joinToString("\n") { "• $it" }
             if (entries.size == 1) lines else "Version $version\n$lines"
         }
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this, ui.dialogTheme)
             .setTitle(title)
             .setMessage(text)
             .setPositiveButton("Super", null)
-            .show()
+            .show().also(ui::styleDialog)
     }
 
     private fun askForNotifications() {
@@ -130,12 +130,12 @@ class MainActivity : Activity() {
     private fun offerUpdate(release: Updater.Release) {
         if (offeredVersion == release.version || !store.setupDone || !store.isOn(Hint.UPDATE_POPUP)) return
         offeredVersion = release.version
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this, ui.dialogTheme)
             .setTitle("Update verfügbar")
             .setMessage("Version ${release.version} ist da. Jetzt installieren?")
             .setPositiveButton("Installieren") { _, _ -> installUpdate() }
             .setNegativeButton("Später", null)
-            .show()
+            .show().also(ui::styleDialog)
     }
 
     private fun startSetup() {
@@ -274,6 +274,9 @@ class MainActivity : Activity() {
                 return
             }
         store.restoreSafe(values)
+        // The backup may have switched black mode, which changes the colours of this screen.
+        ui = Ui(this)
+        ui.styleWindow(this)
         loadDraft()
         perAppMode = values.optBoolean("per_app_mode", perAppMode)
         globalLimit = values.optInt("global_limit", globalLimit).coerceIn(0, MAX_MINUTES)
@@ -309,7 +312,7 @@ class MainActivity : Activity() {
                 *listOfNotNull(
                     ui.row(
                         ui.label("Doomscroll Blocker", 24f, ui.textColor, bold = true),
-                        if (isServiceEnabled()) ui.pill("AN", ui.successSoft, ui.success) else ui.pill("AUS", ui.surface, ui.danger),
+                        if (isServiceEnabled()) ui.pill("${ui.mark(true)}AN", ui.successSoft, ui.success) else ui.pill("${ui.mark(false)}AUS", ui.surface, ui.danger),
                     ).apply { setPadding(0, 0, 0, ui.dp(14f)) },
                     if (isServiceEnabled()) null else statusCard(),
                     todayCard(),
@@ -336,12 +339,12 @@ class MainActivity : Activity() {
         val header = card.getChildAt(0)
         card.removeViewAt(0)
         val headRow = (header as? LinearLayout)?.takeIf { it.orientation == LinearLayout.HORIZONTAL } ?: ui.row(header)
-        val chevron = ui.label("", 18f, ui.muted).apply { setPadding(ui.dp(10f), 0, 0, 0) }
+        val chevron = ui.chevron()
         summary?.let { headRow.addView(ui.label(it, 13f, ui.muted).apply { setPadding(ui.dp(8f), 0, 0, 0) }, headRow.childCount) }
         headRow.addView(chevron)
         fun show() {
             val isOpen = key in openSections
-            chevron.text = if (isOpen) "▴" else "▾"
+            ui.setChevron(chevron, isOpen)
             for (i in 1 until card.childCount) card.getChildAt(i).visibility = if (isOpen) View.VISIBLE else View.GONE
         }
         headRow.minimumHeight = ui.dp(48f)
@@ -370,7 +373,7 @@ class MainActivity : Activity() {
     /** Only shown while the blocker is off; when it runs, the header pill says so. */
     private fun statusCard(): View {
         return ui.card(
-            ui.cardTitle("Blocker ist aus"),
+            ui.cardTitle("${ui.mark(false)}Blocker ist aus"),
             ui.body("Schalte „Doomscroll Blocker“ in den Bedienungshilfen ein, damit gezählt und gesperrt wird.", ui.textColor),
             ui.primaryButton("Bedienungshilfen öffnen") {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -426,7 +429,7 @@ class MainActivity : Activity() {
         fun timeButton(prefix: String, minute: () -> Int, set: (Int) -> Unit): View {
             lateinit var button: android.widget.TextView
             button = ui.secondaryButton("$prefix ${clock(minute())}") {
-                TimePickerDialog(this, { _, h, m ->
+                TimePickerDialog(this, ui.dialogTheme, { _, h, m ->
                     set(h * 60 + m)
                     button.text = "$prefix ${clock(minute())}"
                 }, minute() / 60, minute() % 60, true).show()
@@ -555,7 +558,7 @@ class MainActivity : Activity() {
 
     private fun backupCard(): LinearLayout = ui.card(
         ui.cardTitle("Datensicherung"),
-        ui.body("Speichert Limits, Ruhezeiten, Hinweise, Schriftgröße und den Verlauf der letzten 30 Tage in einer Datei, z. B. für ein neues Handy. Lockert der Import ein Limit, musst du den Satz abtippen. Eigene Wörter des Porno-Blockers fügt ein Import nur hinzu, nie entfernt er welche."),
+        ui.body("Speichert Limits, Ruhezeiten, Hinweise, Schriftgröße, Schwarz-Modus und den Verlauf der letzten 30 Tage in einer Datei, z. B. für ein neues Handy. Lockert der Import ein Limit, musst du den Satz abtippen. Eigene Wörter des Porno-Blockers fügt ein Import nur hinzu, nie entfernt er welche."),
         ui.secondaryButton("Exportieren") {
             @Suppress("DEPRECATION")
             startActivityForResult(
@@ -606,6 +609,20 @@ class MainActivity : Activity() {
                 ui = Ui(this)
                 render()
             },
+            ui.spacer(8f),
+            ui.row(
+                ui.label("Schwarz-Modus", 16f, ui.textColor, bold = true),
+                ui.switch(store.mono).apply {
+                    contentDescription = "Schwarz-Modus"
+                    setOnCheckedChangeListener { _, on ->
+                        store.mono = on
+                        ui = Ui(this@MainActivity)
+                        ui.styleWindow(this@MainActivity)
+                        render()
+                    }
+                },
+            ).apply { minimumHeight = ui.dp(48f) },
+            ui.body("Fast schwarzer Hintergrund, nur Grautöne und runde Scheiben statt Farben. Aktiv ist hell, inaktiv dunkel; Zustände zeigen zusätzlich ein Symbol."),
         )
     }
 
@@ -671,7 +688,7 @@ class MainActivity : Activity() {
         val dpm = getSystemService(DevicePolicyManager::class.java)
         val admin = ComponentName(this, AdminReceiver::class.java)
         if (dpm.isAdminActive(admin)) {
-            card.addView(ui.pill("Deinstallieren gesperrt", ui.successSoft, ui.success))
+            card.addView(ui.pill("${ui.mark(true)}Deinstallieren gesperrt", ui.successSoft, ui.success))
         } else {
             card.addView(ui.body("Zusätzlich kannst du die App als Geräteadministrator eintragen. Dann lässt Android sie gar nicht erst deinstallieren."))
             card.addView(ui.primaryButton("Deinstallieren sperren") {
