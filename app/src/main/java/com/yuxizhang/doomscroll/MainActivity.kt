@@ -555,7 +555,7 @@ class MainActivity : Activity() {
 
     private fun backupCard(): LinearLayout = ui.card(
         ui.cardTitle("Datensicherung"),
-        ui.body("Speichert Limits, Ruhezeiten, Hinweise, Schriftgröße und den Verlauf der letzten 30 Tage in einer Datei, z. B. für ein neues Handy. Lockert der Import ein Limit, musst du den Satz abtippen. Den Porno-Blocker schaltet ein Import nur ein, nie aus."),
+        ui.body("Speichert Limits, Ruhezeiten, Hinweise, Schriftgröße und den Verlauf der letzten 30 Tage in einer Datei, z. B. für ein neues Handy. Lockert der Import ein Limit, musst du den Satz abtippen. Eigene Wörter des Porno-Blockers fügt ein Import nur hinzu, nie entfernt er welche."),
         ui.secondaryButton("Exportieren") {
             @Suppress("DEPRECATION")
             startActivityForResult(
