@@ -3,6 +3,20 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## Nächstes Release (Liquid Glass)
+
+- [ ] Erststart nach dem Update: Die App zeigt den Standard (Glas-Stil Klar, Glas-Effekte Einfach, Dunkler Modus System): farbiger Verlauf mit Farbklecksen, weiße Schrift, Kopfleiste und Knöpfe als helle Glasflächen, Karten deckend.
+- [ ] Darstellung, Dunkler Modus: System, Hell, Dunkel wechseln; im Stil Klar ändert sich der Verlauf (Dunkel ist dunkler, Farbklecksen schwächer).
+- [ ] Darstellung, Glas-Effekte: Aus (alles deckend), Einfach (Knöpfe und Kopfleiste Glas), Voll (auch Karten durchscheinend); Text bleibt überall lesbar.
+- [ ] Android unter 13 oder Energiesparmodus: Flächen bleiben deckend, die Auswahl bleibt gespeichert; ein Hinweis erklärt das.
+- [ ] Glas-Stil Tinted Dark: dunkler Grund, hellgraues Glas, Schrift und Symbole schwarz, auch bei hellem Handy-Modus; Titel stehen auf der Kopfleiste. Dialoge (Was ist neu, Update, Uhrzeit) passen dazu.
+- [ ] Status trägt Häkchen oder Kreuz (AN/AUS, Deinstallieren gesperrt, Blocker ist aus), nicht nur Farbe.
+- [ ] Hintergrund je Stil: Standard, Verlauf (Blau, Violett, Graphit, Warm), Einfarbig (#RRGGBB, ungültig wird abgelehnt), Bild aus der Galerie, Farbklecksen aus. Helle Farbe oder Bild wird abgedunkelt, Text lesbar. Klar und Tinted Dark merken sich je eigene Wahl.
+- [ ] Bild entfernen oder gelöschtes Bild: Hintergrund fällt auf Standard zurück.
+- [ ] Datensicherung: Einstellungen ändern, exportieren, App-Daten leeren, importieren: Dunkler Modus, Glas-Stufe, Glas-Stil und Hintergrund-Auswahl sind zurück (das Bild muss neu gewählt werden). Alte Sicherung ohne diese Einträge lässt die Darstellung unverändert.
+- [ ] Android 13 oder neuer: Themed Icons einschalten, App-Symbol erscheint einfarbig.
+- [ ] Große Schriftgröße (200 %): Darstellung bricht nicht um.
+
 ## 1.28
 
 - [ ] Porno-Blocker: Schalter steht auf „an“ und lässt sich nicht antippen, kein Code-Feld, kein „Heute aufheben“.

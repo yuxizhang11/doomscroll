@@ -10,7 +10,7 @@ Android-App (Kotlin, reine Framework-Views, kein AndroidX, kein Compose). Zählt
   - `AdultFilter.kt`: Porno-Blocker (Browserliste, Adresserkennung, Wortlisten). `Guard.kt`: Schutz vor Abschalten und Deinstallieren.
   - `Store.kt`: alle Einstellungen und Tageszähler in einer SharedPreferences-Datei, `SCHEMA` und Migrationen. `Backup.kt`: Export und Import als JSON.
   - `MainActivity.kt`: Einstellungen, Einführung, Heute-Anzeige. `UnlockActivity.kt`: Satz oder 20 Zeichen abtippen zum Lockern.
-  - `Ui.kt`: kleines Design-System aus Framework-Views (Farben, Karten, Knöpfe). `AdminReceiver.kt`: Geräteadmin ohne Rechte.
+  - `Ui.kt`: kleines Design-System aus Framework-Views (Karten, Knöpfe, Kopfleiste). `Look.kt`: alle Farben und Werte von Liquid Glass (Dunkler Modus, Glas-Stufe, Glas-Stil, Hintergrund) samt Kontrastprüfung. `Glass.kt`: Glasfläche, Hintergrundansicht und das gewählte Hintergrundbild. `AdminReceiver.kt`: Geräteadmin ohne Rechte.
   - `Updater.kt`, `UpdateJob.kt`: Update-Suche über die GitHub-Releases, Installation, Benachrichtigung. `Changelog.kt`: Änderungen in der App.
 - `app/src/test/`: JVM-Unit-Tests der Logik (Versionsvergleich, Ruhezeit-Fenster, Porno-Filter, Erkennung per Adresse, Backup-Lesen, Changelog).
 - `app/src/main/res/xml/accessibility_config.xml`: Paketliste des Service, muss zu `TargetApp`, `AdultFilter.BROWSERS` und `Guard.PACKAGES` passen.
