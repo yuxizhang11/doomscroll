@@ -72,7 +72,10 @@ class BlockerService : AccessibilityService() {
     private val limitReached = Runnable {
         val app = activeApp ?: return@Runnable
         endSession()
-        if (detectShortForm() == app) block(app)
+        // The timer was set with the time left when counting began. If midnight passed since, the
+        // counters were reset and time is left again, so the session starts over and only blocks
+        // when nothing is left.
+        if (detectShortForm() == app) startSession(app)
     }
 
     private val warn = Runnable {
