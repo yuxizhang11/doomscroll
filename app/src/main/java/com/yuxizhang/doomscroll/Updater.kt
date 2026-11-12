@@ -63,19 +63,25 @@ object Updater {
                 val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
                     .apply { setAppPackageName(app.packageName) }
                 val id = installer.createSession(params)
-                installer.openSession(id).use { session ->
-                    get(release.apkUrl).use { input ->
-                        session.openWrite("update.apk", 0, -1).use { out ->
-                            input.copyTo(out)
-                            session.fsync(out)
+                try {
+                    installer.openSession(id).use { session ->
+                        get(release.apkUrl).use { input ->
+                            session.openWrite("update.apk", 0, -1).use { out ->
+                                input.copyTo(out)
+                                session.fsync(out)
+                            }
                         }
+                        val intent = Intent(app, InstallReceiver::class.java)
+                        val pending = PendingIntent.getBroadcast(
+                            app, id, intent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                        )
+                        session.commit(pending.intentSender)
                     }
-                    val intent = Intent(app, InstallReceiver::class.java)
-                    val pending = PendingIntent.getBroadcast(
-                        app, id, intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
-                    )
-                    session.commit(pending.intentSender)
+                } catch (e: Exception) {
+                    // A failed download must not leave a half-written install session behind.
+                    runCatching { installer.abandonSession(id) }
+                    throw e
                 }
             }.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }
             main.post { done(error) }
