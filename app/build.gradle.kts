@@ -46,4 +46,15 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    // Plain JVM tests only touch logic without a device; Android calls they hit return defaults.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    // The Android JSON classes are stubs on the JVM, so the tests bring the real ones.
+    testImplementation("org.json:json:20240303")
 }
