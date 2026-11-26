@@ -3,6 +3,26 @@
 Pro Release ein Abschnitt. Vor dem Merge auf einem echten Android-Handy abhaken, neueste Version oben.
 Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über die alte Version behält die Einstellungen.
 
+## Desktop 0.1.0 (Windows, noch ohne Release)
+
+Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vorher grün.
+
+- [ ] Tray-Symbol erscheint, Klick öffnet das Fenster, Schließen lässt die App im Tray.
+- [ ] Erweiterung in Chrome, Edge oder Brave laden, Kopplungscode einfügen: Reiter „Erweiterung“ zeigt „Verbunden“.
+- [ ] Dasselbe in Firefox (temporäres Add-on).
+- [ ] instagram.com/reels, youtube.com/shorts und tiktok.com zählen die Zeit; Feed, normale YouTube-Videos und Suche zählen nicht.
+- [ ] Limit auf 1 Minute: nach Ablauf erscheint „Genug für heute!“ im Tab, „Zur Startseite“ führt auf die normale Seite.
+- [ ] Sperre aufheben: Satz abtippen, Einfügen (Strg+V, Rechtsklick) geht nicht, danach zählt nichts mehr bis Mitternacht.
+- [ ] Limit erhöhen verlangt den Satz, Verkleinern nicht.
+- [ ] Porno-Wort im Adressfeld oder in einer Suche: Tab wird auf „Diese Seite ist gesperrt“ umgeleitet, auch im privaten Fenster.
+- [ ] Private Fenster: ohne Erlaubnis zeigt die App „Private Fenster nicht erlaubt“, nach „In Inkognito zulassen“ verschwindet es.
+- [ ] Erweiterung entfernen, Browser offen lassen: nach etwa 90 Sekunden kommt die Meldung „Erweiterung fehlt“, im Reiter steht „Meldet sich nicht“.
+- [ ] Beenden im Tray verlangt 20 Zeichen; Autostart ausschalten ebenfalls.
+- [ ] Neustart von Windows: App startet im Tray ohne Fenster (Autostart).
+- [ ] Datensicherung exportieren, in frischer Installation importieren; Sicherung der Handy-App wird abgelehnt.
+- [ ] Zeitumstellung oder Mitternacht: Zähler beginnen neu, gestern steht in „Letzte 7 Tage“.
+- [ ] Glas „Aus“, „Einfach“, „Voll“, Hell und Dunkel, Schriftgröße „Riesig“: alles lesbar, nichts überlappt.
+
 ## 1.28
 
 - [ ] Porno-Blocker: Schalter steht auf „an“ und lässt sich nicht antippen, kein Code-Feld, kein „Heute aufheben“.
