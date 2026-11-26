@@ -13,6 +13,7 @@ const REMINDER_GAP_MS = 10_000; // kürzere Pausen lösen keine neue „Noch X M
 class Tracker {
   constructor(store, { now = Date.now } = {}) {
     this.store = store;
+    this.locked = false; // Windows-Sitzung gesperrt oder im Ruhezustand: es zählt nichts
     this.now = now;
     this.clients = new Map(); // clientId -> { seen, tabs, browser, label, version, incognitoAllowed }
     this.activeApp = null;
@@ -21,10 +22,18 @@ class Tracker {
     this.lastSessionEnd = 0;
   }
 
+  /** Bei gesperrter Sitzung endet die laufende Zählung sofort; gesperrte Tabs bleiben gesperrt. */
+  setLocked(locked) {
+    this.locked = Boolean(locked);
+    if (this.locked) this.activeApp = null;
+  }
+
   /**
    * Eine Meldung der Erweiterung. Gibt zurück, welche der gemeldeten Tabs gesperrt werden sollen
    * (blocks: [{id, kind: 'limit' | 'quiet' | 'porn', app}]) und welche Meldungen anstehen (events).
-   * tabs müssen bereits geprüft sein: [{id: Zahl, url: Text, incognito: Wahrheitswert}].
+   * tabs müssen bereits geprüft sein: [{id: Zahl, url: Text, incognito: Wahrheitswert, focused: Wahrheitswert}].
+   * Gezählt wird nur in einem Browserfenster mit Fokus und bei entsperrter Sitzung, wie am Handy nur die App im Vordergrund.
+   * Gesperrt wird unabhängig davon, sonst ließe sich ein Limit durch Fensterwechsel umgehen.
    */
   report(clientId, info, tabs) {
     const t = this.now();
@@ -47,7 +56,7 @@ class Tracker {
     const open = new Set();
     for (const c of this.clients.values()) {
       for (const tab of c.tabs) {
-        if (isPorn(tab.url, words)) continue;
+        if (this.locked || tab.focused !== true || isPorn(tab.url, words)) continue;
         const app = fromUrl(tab.url);
         if (!app || !store.isEnabled(app.id)) continue;
         const left = store.remainingMs(app.id);

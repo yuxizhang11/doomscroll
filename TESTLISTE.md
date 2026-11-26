@@ -8,6 +8,9 @@ Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über
 Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vorher grün.
 
 - [ ] Fünf Minuten Shorts am Stück ansehen, ohne den Tab zu wechseln: Heute zeigt etwa 5 min (der Browser legt den Hintergrundprozess der Erweiterung nicht zu früh schlafen; Chrome und Firefox).
+- [ ] Reel im Browser offen lassen und in ein anderes Programm wechseln: Heute zählt nicht weiter. Zurück zum Browser: es zählt wieder.
+- [ ] Windows sperren (Win+L), nach einer Minute entsperren: die Minute fehlt in Heute. Dasselbe mit Standby/Ruhezustand.
+- [ ] Limit erreicht, Browserfenster ohne Fokus: Der Tab ist trotzdem gesperrt, sobald er sichtbar ist.
 - [ ] Dasselbe in einem privaten Fenster: Die Sperrseite erscheint dort ebenfalls.
 - [ ] Tray-Symbol erscheint, Klick öffnet das Fenster, Schließen lässt die App im Tray.
 - [ ] Erweiterung in Chrome, Edge oder Brave laden, Kopplungscode einfügen: Reiter „Erweiterung“ zeigt „Verbunden“.

@@ -42,8 +42,8 @@ Grenze: Ein anderes Programm, das den Code kennt oder die Datendatei lesen darf,
 ## Was wann zählt
 
 - Instagram: `/reels` und `/reel/…` (auch `/name/reel/…`), YouTube: `/shorts/…`, TikTok: die ganze Seite. Alles andere bleibt nutzbar.
-- Gezählt wird, solange der aktive Tab eines nicht minimierten Browserfensters eine dieser Seiten zeigt (auch ohne Fokus, damit „Fenster nach hinten legen“ nicht umgeht). Mehrere Tabs oder Browser zählen die Zeit nur einmal. Bricht die Meldung länger als 6 Sekunden ab, zählt die Lücke nicht.
-- Die Zeit zählt auch bei gesperrtem Bildschirm, solange der Browser den Tab offen hält (Android hört bei Bildschirm aus auf). Ob das so bleiben soll, ist offen.
+- Gezählt wird nur, solange das Browserfenster mit dem Reels/Shorts-Tab den Fokus hat und die Windows-Sitzung entsperrt ist (wie am Handy, wo nur die App im Vordergrund zählt). Ohne Fokus, bei gesperrter Sitzung (`lock-screen`) und im Ruhezustand (`suspend`) zählt nichts. Gesperrt wird trotzdem in jedem Fenster, ein Fensterwechsel umgeht das Limit also nicht. Mehrere Tabs oder Browser zählen die Zeit nur einmal. Bricht die Meldung länger als 6 Sekunden ab, zählt die Lücke nicht. Die Erweiterung braucht dafür keine zusätzliche Berechtigung: `windows.getAll()` liefert `focused` ohne die Berechtigung `windows`.
+- Ein bloß ausgeschalteter Monitor ohne Sitzungssperre löst unter Windows kein Ereignis aus; dann zählt nur, was den Fokus hat.
 - Porno-Blocker: Liste aus `AdultFilter.kt`, gilt für jede Adresse inklusive Suchbegriffen, immer an, eigene Wörter nur ergänzbar.
 
 ## Aufbau

@@ -36,12 +36,13 @@ async function identity() {
 async function activeTabs(extraTab) {
   const [windows, active] = await Promise.all([api.windows.getAll(), api.tabs.query({ active: true })]);
   const minimized = new Set(windows.filter((w) => w.state === 'minimized').map((w) => w.id));
+  const focused = new Set(windows.filter((w) => w.focused).map((w) => w.id)); // zählt nur im Fenster mit Fokus
   const tabs = active.filter((t) => !minimized.has(t.windowId));
   if (extraTab && !tabs.some((t) => t.id === extraTab.id)) tabs.push(extraTab);
   return tabs
     .filter((t) => Number.isSafeInteger(t.id) && typeof t.url === 'string' && /^https?:/i.test(t.url))
     .slice(0, 64)
-    .map((t) => ({ id: t.id, url: t.url, incognito: Boolean(t.incognito) }));
+    .map((t) => ({ id: t.id, url: t.url, incognito: Boolean(t.incognito), focused: focused.has(t.windowId) }));
 }
 
 async function setStatus(status) {

@@ -19,7 +19,7 @@ function fakeBrowser(tabs, storage) {
   const api = {
     storage: { local: { get: async (keys) => Object.fromEntries(keys.filter((k) => k in storage).map((k) => [k, storage[k]])), set: async (o) => Object.assign(storage, o) } },
     tabs: { query: async () => tabs, update: async (id, props) => { calls.update.push({ id, props }); }, onActivated: evt('tabs.onActivated'), onUpdated: evt('tabs.onUpdated') },
-    windows: { getAll: async () => [{ id: 1, state: 'normal' }], onFocusChanged: evt('windows.onFocusChanged') },
+    windows: { getAll: async () => [{ id: 1, state: 'normal', focused: true }], onFocusChanged: evt('windows.onFocusChanged') },
     alarms: { create: () => {}, onAlarm: evt('alarms.onAlarm') },
     runtime: { getManifest: () => ({ version: '0.1.0' }), getURL: (p) => `chrome-extension://abcd/${p}`, onInstalled: evt('onInstalled'), onStartup: evt('onStartup'), onMessage: evt('onMessage'), openOptionsPage: () => {} },
     extension: { isAllowedIncognitoAccess: async () => true },
@@ -64,6 +64,7 @@ test('Erweiterung: meldet den aktiven Tab und leitet gesperrte Tabs auf die Sper
   const seen = [...tracker.clients.values()][0];
   assert.deepEqual(seen.tabs.map((x) => x.id), [5, 6], 'chrome:// wird nicht gemeldet');
   assert.equal(seen.tabs[0].incognito, true);
+  assert.deepEqual(seen.tabs.map((x) => x.focused), [true, true], 'Fensterfokus wird mitgeschickt');
   assert.equal(seen.browser, 'chromium');
 });
 

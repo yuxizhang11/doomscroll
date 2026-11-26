@@ -40,7 +40,7 @@ function parseHeartbeat(body) {
     if (!t || typeof t !== 'object') return null;
     if (!Number.isSafeInteger(t.id) || typeof t.incognito !== 'boolean') return null;
     // Nur Webadressen; alles andere (chrome://, about:, Erweiterungsseiten) wird verworfen.
-    if (parseWebUrl(t.url)) clean.push({ id: t.id, url: t.url, incognito: t.incognito });
+    if (parseWebUrl(t.url)) clean.push({ id: t.id, url: t.url, incognito: t.incognito, focused: t.focused === true });
   }
   return {
     client,

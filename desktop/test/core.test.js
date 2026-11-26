@@ -18,7 +18,7 @@ function clock(y = 2026, m = 11, d = 10, h = 12, min = 0) {
   return c;
 }
 
-const tab = (url, id = 1) => ({ id, url, incognito: false });
+const tab = (url, id = 1, focused = true) => ({ id, url, incognito: false, focused });
 const INFO = { browser: 'chromium', label: 'Chrome', version: '1', incognitoAllowed: true };
 
 // ---------- Adult-Filter ----------
@@ -342,6 +342,56 @@ test('Tracker: zählt nur Reels, Shorts und TikTok', () => {
   c.advance(2000);
   tracker.report('client-0001', INFO, [tab('https://www.youtube.com/shorts/1')]);
   assert.equal(store.usageMs('YOUTUBE'), 4000);
+});
+
+test('Tracker: ohne Fensterfokus zählt keine Zeit, ein Fensterwechsel umgeht die Sperre aber nicht', () => {
+  const { c, store, tracker } = setup({ global_limit: 1 });
+  const url = 'https://www.youtube.com/shorts/x';
+  tracker.report('client-0001', INFO, [tab(url, 1, true)]);
+  c.advance(2000);
+  tracker.report('client-0001', INFO, [tab(url, 1, true)]);
+  assert.equal(store.usageMs('YOUTUBE'), 2000);
+  c.advance(2000);
+  tracker.report('client-0001', INFO, [tab(url, 1, false)]); // die letzte Spanne vor dem Fokusverlust zählt noch
+  const atFocusLoss = store.usageMs('YOUTUBE');
+  for (let i = 0; i < 5; i++) {
+    c.advance(2000);
+    tracker.report('client-0001', INFO, [tab(url, 1, false)]);
+  }
+  assert.equal(store.usageMs('YOUTUBE'), atFocusLoss, 'Fenster ohne Fokus zählt nicht');
+  assert.equal(tracker.currentApp(), null);
+  // Limit erreicht: Der Tab ohne Fokus wird trotzdem gesperrt.
+  store.addUsage('YOUTUBE', 2 * MINUTE);
+  assert.deepEqual(tracker.report('client-0001', INFO, [tab(url, 1, false)]).blocks, [{ id: 1, kind: 'limit', app: 'YOUTUBE' }]);
+  // Fehlt die Angabe ganz, gilt der Tab als ohne Fokus.
+  const { c: c2, store: s2, tracker: t2 } = setup();
+  t2.report('client-0001', INFO, [{ id: 1, url, incognito: false }]);
+  c2.advance(2000);
+  t2.report('client-0001', INFO, [{ id: 1, url, incognito: false }]);
+  assert.equal(s2.usageMs('YOUTUBE'), 0);
+});
+
+test('Tracker: gesperrte Windows-Sitzung hält das Zählen an und beendet die Sitzung', () => {
+  const { c, store, tracker } = setup();
+  const reel = [tab('https://www.instagram.com/reels/')];
+  tracker.report('client-0001', INFO, reel);
+  c.advance(2000);
+  tracker.report('client-0001', INFO, reel);
+  assert.equal(store.usageMs('INSTAGRAM'), 2000);
+  tracker.setLocked(true);
+  assert.equal(tracker.currentApp(), null);
+  for (let i = 0; i < 5; i++) {
+    c.advance(2000);
+    tracker.report('client-0001', INFO, reel);
+  }
+  assert.equal(store.usageMs('INSTAGRAM'), 2000, 'gesperrt zählt nichts');
+  tracker.setLocked(false);
+  c.advance(2000);
+  tracker.report('client-0001', INFO, reel);
+  assert.equal(store.usageMs('INSTAGRAM'), 2000, 'die Lücke bis zum Entsperren zählt nicht');
+  c.advance(2000);
+  tracker.report('client-0001', INFO, reel);
+  assert.equal(store.usageMs('INSTAGRAM'), 4000, 'danach zählt es wieder');
 });
 
 test('Tracker: Lücke über 6 s zählt nicht, zwei Browser zählen die Zeit nur einmal', () => {

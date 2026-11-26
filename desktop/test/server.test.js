@@ -7,7 +7,7 @@ const updater = require('../src/updater');
 
 const PORT = 47698;
 const TOKEN = 'a'.repeat(64);
-const GOOD = { client: 'client-00001', browser: 'chromium', label: 'Chrome', version: '0.1.0', incognitoAllowed: true, tabs: [{ id: 1, url: 'https://www.tiktok.com/', incognito: false }] };
+const GOOD = { client: 'client-00001', browser: 'chromium', label: 'Chrome', version: '0.1.0', incognitoAllowed: true, tabs: [{ id: 1, url: 'https://www.tiktok.com/', incognito: false, focused: true }] };
 
 function post(body, { headers = {}, method = 'POST', path = '/v1/heartbeat' } = {}) {
   return new Promise((resolve, reject) => {
@@ -99,7 +99,7 @@ test('Meldung: strenge Prüfung', () => {
     { id: 2, url: 'javascript:alert(1)', incognito: false },
     { id: 3, url: 'https://ok.example/', incognito: true },
   ] });
-  assert.deepEqual(mixed.tabs, [{ id: 3, url: 'https://ok.example/', incognito: true }]);
+  assert.deepEqual(mixed.tabs, [{ id: 3, url: 'https://ok.example/', incognito: true, focused: false }]);
   assert.equal(mixed.info.incognitoAllowed, null);
   assert.equal(mixed.info.label.length, 40);
 });

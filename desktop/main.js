@@ -2,7 +2,7 @@
 // Doomscroll Blocker für Windows: sitzt im Tray, zählt über die Browser-Erweiterung und sperrt bei Limit.
 // Fenster nur auf Klick; „Beenden“ im Tray braucht die 20 Zeichen.
 
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, dialog, shell, clipboard, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, dialog, shell, clipboard, nativeImage, powerMonitor } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
@@ -413,6 +413,12 @@ function start() {
   store = new Store(persist.load(file), { onChange: () => saver?.schedule() });
   saver = persist.debounced(file, () => store.data);
   tracker = new Tracker(store);
+  // Bei gesperrter Windows-Sitzung oder im Ruhezustand zählt keine Zeit (wie am Handy bei Bildschirm aus).
+  const power = { locked: false, suspended: false };
+  const sync = () => tracker.setLocked(power.locked || power.suspended);
+  for (const [event, key, value] of [['lock-screen', 'locked', true], ['unlock-screen', 'locked', false], ['suspend', 'suspended', true], ['resume', 'suspended', false]]) {
+    powerMonitor.on(event, () => { power[key] = value; sync(); });
+  }
   const firstRun = typeof store.data.last_seen_version !== 'string';
   if (firstRun) store.set('last_seen_version', VERSION);
   Menu.setApplicationMenu(null);
