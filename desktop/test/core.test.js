@@ -42,6 +42,14 @@ test('Porno-Filter: harmlose Seiten bleiben offen', () => {
   assert.equal(isPorn(42), false);
 });
 
+test('Porno-Filter: prozentkodierte Adressen (Umlaute, Leerzeichen) treffen eigene Wörter', () => {
+  assert.ok(isPorn('https://www.google.com/search?q=m%C3%BCllwort+mehr', ['müllwort']));
+  assert.ok(isPorn('https://example.com/?q=zwei%20worte', ['zwei worte']));
+  assert.ok(isPorn('https://example.com/?q=zwei+worte', ['zwei worte']));
+  assert.ok(isPorn('https://example.com/?q=%70orn'), 'auch Porno-Wörter hinter %-Kodierung');
+  assert.equal(isPorn('https://example.com/?q=%E0%A4%A', ['x1']), false, 'kaputte Kodierung wirft nicht');
+});
+
 test('Porno-Filter: eigene Wörter zählen wie „porn“, zu kurze werden abgelehnt', () => {
   assert.equal(isPorn('https://example.com/?q=deepfake'), false);
   assert.ok(isPorn('https://example.com/?q=DeepFake+videos', ['deepfake']));

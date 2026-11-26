@@ -7,6 +7,8 @@ Immer mitprüfen: App startet, Blocker läuft nach Neustart weiter, Update über
 
 Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vorher grün.
 
+- [ ] Fünf Minuten Shorts am Stück ansehen, ohne den Tab zu wechseln: Heute zeigt etwa 5 min (der Browser legt den Hintergrundprozess der Erweiterung nicht zu früh schlafen; Chrome und Firefox).
+- [ ] Dasselbe in einem privaten Fenster: Die Sperrseite erscheint dort ebenfalls.
 - [ ] Tray-Symbol erscheint, Klick öffnet das Fenster, Schließen lässt die App im Tray.
 - [ ] Erweiterung in Chrome, Edge oder Brave laden, Kopplungscode einfügen: Reiter „Erweiterung“ zeigt „Verbunden“.
 - [ ] Dasselbe in Firefox (temporäres Add-on).

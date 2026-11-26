@@ -59,7 +59,7 @@ test('Erweiterung: meldet den aktiven Tab und leitet gesperrte Tabs auf die Sper
 
   assert.equal(storage.status.ok, true);
   assert.equal(storage.status.incognitoAllowed, true);
-  assert.deepEqual(calls.update, [{ id: 5, props: { url: 'chrome-extension://abcd/blocked.html?kind=limit&app=TIKTOK' } }]);
+  assert.deepEqual(calls.update, [{ id: 5, props: { url: 'http://127.0.0.1:47615/blocked?kind=limit&app=TIKTOK' } }]);
   assert.equal(tracker.clients.size, 1);
   const seen = [...tracker.clients.values()][0];
   assert.deepEqual(seen.tabs.map((x) => x.id), [5, 6], 'chrome:// wird nicht gemeldet');
@@ -106,7 +106,7 @@ test('Erweiterung: Manifest ist gültig und fordert nur nötige Rechte', () => {
   assert.deepEqual([...m.permissions].sort(), ['alarms', 'storage', 'tabs']);
   assert.deepEqual(m.host_permissions, ['http://127.0.0.1:47615/*']);
   assert.ok(m.browser_specific_settings.gecko.id);
-  for (const f of [m.background.service_worker, m.options_ui.page, ...Object.values(m.icons), 'blocked.html', 'blocked.js', 'options.js', 'page.css']) {
+  for (const f of [m.background.service_worker, m.options_ui.page, ...Object.values(m.icons), 'options.js', 'page.css']) {
     assert.ok(fs.existsSync(path.join(dir, f)), `${f} fehlt`);
   }
 });

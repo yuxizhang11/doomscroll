@@ -12,6 +12,7 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 const { parseWebUrl } = require('./core/targets');
+const blockedPage = require('./blocked-page');
 
 const DEFAULT_PORT = 47615;
 const MAX_BODY = 256 * 1024;
@@ -84,6 +85,15 @@ function start({ token, port = DEFAULT_PORT, onHeartbeat }) {
         Vary: 'Origin',
       });
       return res.end();
+    }
+    // Sperrseite für umgeleitete Tabs: ohne Token, feste Texte, nichts aus der Adresse wird eingesetzt.
+    if (req.method === 'GET' && req.url.startsWith('/blocked')) {
+      const q = new URL(req.url, 'http://127.0.0.1').searchParams;
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': blockedPage.CSP, 'Referrer-Policy': 'no-referrer',
+      });
+      return res.end(blockedPage.render(q.get('kind'), q.get('app')));
     }
     if (req.method !== 'POST' || req.url !== '/v1/heartbeat') return send(404, { error: 'not-found' });
 

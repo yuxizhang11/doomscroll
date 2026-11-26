@@ -29,10 +29,24 @@ function cleanWord(word) {
   return clean.length >= 2 && clean.length <= 64 ? clean : null;
 }
 
+/** Browser melden Adressen prozentkodiert (Umlaute, Leerzeichen als + oder %20); eigene Wörter sollen trotzdem greifen. */
+function safeDecode(text) {
+  try {
+    return decodeURIComponent(text.replace(/\+/g, ' '));
+  } catch {
+    return text;
+  }
+}
+
 /** Eine Porno-Seite oder -Suche; ownWords sind die eigenen Wörter des Users und zählen wie „porn“. */
 function isPorn(address, ownWords = []) {
   if (typeof address !== 'string') return false;
   const text = address.toLowerCase();
+  const decoded = safeDecode(text);
+  return matches(text, ownWords) || (decoded !== text && matches(decoded, ownWords));
+}
+
+function matches(text, ownWords) {
   if (SITE_NAMES.some((s) => text.includes(s)) || KEYWORDS.some((s) => text.includes(s))) return true;
   if ([...ownWords].some((w) => text.includes(w))) return true;
   if (WHOLE_WORDS.test(text)) return true;

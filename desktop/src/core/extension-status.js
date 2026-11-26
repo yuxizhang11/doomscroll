@@ -9,6 +9,8 @@ const FAMILIES = {
   firefox: { label: 'Firefox', processes: ['firefox.exe'] },
 };
 
+// shortcut: pro Browser-Familie statt pro Programm. Brave ohne Erweiterung fällt nicht auf, solange Chrome sie hat, und ein
+// im Hintergrund laufendes msedge.exe gibt Firefox-Nutzern ein falsches „fehlt“. Bei Bedarf pro Prozess prüfen.
 /** running: Menge der laufenden Prozessnamen (klein geschrieben) oder null, wenn unbekannt. */
 function evaluate({ clients, running, now }) {
   const families = {};

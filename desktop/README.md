@@ -16,7 +16,7 @@ Zum Beenden: Tray-Menü „Beenden …“ oder Reiter „Mehr“, dann 20 Zeiche
 
 ## Browser-Erweiterung
 
-`extension/` ist eine Manifest-V3-Erweiterung für Chrome, Edge, Brave und Firefox (ab 121). Sie meldet alle 2 Sekunden die Adressen der aktiven Tabs an die App und leitet Tabs, die die App sperrt, auf „Genug für heute!“ bzw. „Diese Seite ist gesperrt“ um. Gezählt und entschieden wird nur in der App.
+`extension/` ist eine Manifest-V3-Erweiterung für Chrome, Edge, Brave und Firefox (ab 121). Sie meldet alle 2 Sekunden die Adressen der aktiven Tabs an die App und leitet Tabs, die die App sperrt, auf „Genug für heute!“ bzw. „Diese Seite ist gesperrt“ um. Gezählt und entschieden wird nur in der App. Die Sperrseite kommt vom lokalen Server der App (`http://127.0.0.1:47615/blocked`) und nicht aus der Erweiterung, weil Chrome Erweiterungsseiten nicht in private Tabs lädt, solange die Erweiterung `incognito: "spanning"` hat.
 
 - Chrome, Edge, Brave: Erweiterungen, Entwicklermodus, „Entpackte Erweiterung laden“, Ordner `desktop/extension`. Chrome zeigt eine Warnung zu `background.scripts`: Das Manifest enthält absichtlich `service_worker` (Chrome) und `scripts` (Firefox) in einer Datei.
 - Firefox: `about:debugging`, „Dieser Firefox“, „Temporäres Add-on laden“, `desktop/extension/manifest.json` (bleibt bis zum Neustart des Browsers; eine dauerhafte Installation braucht eine signierte Fassung).
@@ -43,6 +43,7 @@ Grenze: Ein anderes Programm, das den Code kennt oder die Datendatei lesen darf,
 
 - Instagram: `/reels` und `/reel/…` (auch `/name/reel/…`), YouTube: `/shorts/…`, TikTok: die ganze Seite. Alles andere bleibt nutzbar.
 - Gezählt wird, solange der aktive Tab eines nicht minimierten Browserfensters eine dieser Seiten zeigt (auch ohne Fokus, damit „Fenster nach hinten legen“ nicht umgeht). Mehrere Tabs oder Browser zählen die Zeit nur einmal. Bricht die Meldung länger als 6 Sekunden ab, zählt die Lücke nicht.
+- Die Zeit zählt auch bei gesperrtem Bildschirm, solange der Browser den Tab offen hält (Android hört bei Bildschirm aus auf). Ob das so bleiben soll, ist offen.
 - Porno-Blocker: Liste aus `AdultFilter.kt`, gilt für jede Adresse inklusive Suchbegriffen, immer an, eigene Wörter nur ergänzbar.
 
 ## Aufbau
@@ -53,6 +54,8 @@ Grenze: Ein anderes Programm, das den Code kennt oder die Datendatei lesen darf,
 - `src/ui/`: Oberfläche nach `C:\Claude\design\DESIGN.md` (Glas aus, einfach, voll; Hell, Dunkel; Animationen und Schriftgröße einstellbar).
 - `extension/`: die Browser-Erweiterung. `test/`: `npm test` (`node --test`).
 
-## Updates
+## Updates und Release
 
 Die App sucht beim Start und alle 6 Stunden auf GitHub nach Releases mit dem Tag `desktop-vX.Y.Z` und einer `.exe` (die Android-Releases im selben Repo werden übersprungen). „Update laden“ sucht vorher noch einmal neu und öffnet den Download im Browser. Es gibt noch keinen Build und kein Release.
+
+Wichtig fürs spätere Release: Die Handy-App fragt `/releases/latest` ab. Ein Desktop-Release darf deshalb nie als „latest“ markiert werden (`gh release create desktop-vX.Y.Z --latest=false`), sonst findet die Handy-App kein APK mehr und meldet einen Fehler. Alternative wäre ein eigenes Repo.

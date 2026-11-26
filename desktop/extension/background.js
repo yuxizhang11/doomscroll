@@ -52,10 +52,12 @@ async function block({ id, kind, app }) {
   if (!Number.isSafeInteger(id) || !BLOCK_KINDS.has(kind)) return;
   const query = new URLSearchParams({ kind });
   if (typeof app === 'string' && /^[A-Z]{3,12}$/.test(app)) query.set('app', app);
+  // Die Seite kommt von der App und nicht aus der Erweiterung: Chrome lädt Erweiterungsseiten nicht in
+  // private Tabs, wenn die Erweiterung `incognito: "spanning"` hat. about:blank ist der letzte Ausweg.
   try {
-    await api.tabs.update(id, { url: api.runtime.getURL(`blocked.html?${query}`) });
+    await api.tabs.update(id, { url: `http://127.0.0.1:47615/blocked?${query}` });
   } catch {
-    // Tab ist schon zu: nichts zu tun.
+    await api.tabs.update(id, { url: 'about:blank' }).catch(() => {}); // Tab ist schon zu: nichts zu tun
   }
 }
 

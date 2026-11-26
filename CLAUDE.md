@@ -30,5 +30,7 @@ Android-App (Kotlin, reine Framework-Views, kein AndroidX, kein Compose). Zählt
 
 ## Release
 
+- Desktop: Releases tragen den Tag `desktop-vX.Y.Z` und müssen mit `--latest=false` angelegt werden, weil `Updater.kt` der Handy-App `/releases/latest` abfragt. Noch nicht eingerichtet (kein Build, keine CI für `desktop/`).
+
 - Version steht in `app/build.gradle.kts` (`versionName`, `versionCode`), Release-Notes sind der Abschnitt in `CHANGELOG.md`, dazu `Changelog.kt` und `TESTLISTE.md`.
 - Releases laufen nach den Regeln in `C:\Claude\CLAUDE.md` (erst Rückfrage, dann bauen). Die APK wird mit dem festen Schlüssel signiert, sonst lässt sie sich nicht über die installierte App installieren.

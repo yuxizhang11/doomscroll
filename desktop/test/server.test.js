@@ -54,6 +54,23 @@ test('Server: Anfragen, Token, Origin und Host', async (t) => {
   assert.equal((await post('', { method: 'OPTIONS', headers: { Origin: 'https://evil.example' } })).status, 403);
 });
 
+test('Sperrseite: feste Texte ohne Token, nichts aus der Adresse wird eingesetzt', async (t) => {
+  const server = await start({ token: TOKEN, port: PORT, onHeartbeat: () => ({ blocks: [] }) });
+  t.after(() => server.close());
+  const get = (p, headers = {}) => post('', { method: 'GET', path: p, headers: { Authorization: '', ...headers } });
+  const limit = await get('/blocked?kind=limit&app=INSTAGRAM');
+  assert.equal(limit.status, 200);
+  assert.match(limit.text, /Genug für heute!/);
+  assert.match(limit.text, /https:\/\/www\.instagram\.com\//);
+  assert.match(limit.headers['content-security-policy'], /default-src 'none'/);
+  assert.match((await get('/blocked?kind=porn')).text, /Diese Seite ist gesperrt/);
+  assert.match((await get('/blocked?kind=quiet&app=TIKTOK')).text, /Ruhezeit/);
+  const evil = await get('/blocked?kind=%3Cscript%3Ealert(1)%3C%2Fscript%3E&app=%22%3E%3Cimg%20src%3Dx%3E');
+  assert.match(evil.text, /Genug für heute!/, 'unbekannte Werte fallen auf „limit“ zurück');
+  assert.doesNotMatch(evil.text, /<script>alert|<img src=x>/);
+  assert.equal((await get('/blocked?kind=limit', { Host: 'evil.example' })).status, 421);
+});
+
 test('Server: zweiter Start auf demselben Port meldet EADDRINUSE', async (t) => {
   const a = await start({ token: TOKEN, port: PORT, onHeartbeat: () => ({ blocks: [] }) });
   t.after(() => a.close());
