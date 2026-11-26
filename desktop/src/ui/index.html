@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de" data-theme="dark" data-glass="einfach" data-motion="on">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doomscroll Blocker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="shade"></div></div>
+  <div class="app">
+    <header class="top">
+      <h1>Doomscroll Blocker</h1>
+      <p id="subtitle" class="muted"></p>
+    </header>
+    <main id="view" tabindex="-1"></main>
+    <nav class="tabs" aria-label="Bereiche">
+      <button type="button" data-tab="heute" aria-current="page">Heute</button>
+      <button type="button" data-tab="limits">Limits</button>
+      <button type="button" data-tab="erweiterung">Erweiterung</button>
+      <button type="button" data-tab="mehr">Mehr</button>
+    </nav>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="challenge" aria-labelledby="ch-title">
+    <form method="dialog" id="ch-form">
+      <h2 id="ch-title">Bist du sicher?</h2>
+      <p class="muted">Kurz innehalten hilft oft schon.</p>
+      <p id="ch-instruction"></p>
+      <p id="ch-text" class="challenge-text"></p>
+      <label for="ch-input" id="ch-label">Hier abtippen</label>
+      <textarea id="ch-input" rows="3" autocomplete="off" spellcheck="false" autocapitalize="off"></textarea>
+      <p id="ch-error" class="error" role="alert"></p>
+      <div class="row-actions">
+        <button type="submit" class="btn primary" id="ch-ok">Bestätigen</button>
+        <button type="button" class="btn" id="ch-cancel">Lieber doch nicht</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="info" aria-labelledby="info-title">
+    <h2 id="info-title"></h2>
+    <div id="info-body"></div>
+    <div class="row-actions" id="info-actions"></div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
