@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doomscroll Blocker: Einstellungen</title>
+  <link rel="stylesheet" href="page.css">
+</head>
+<body>
+  <main class="card">
+    <h1>Doomscroll Blocker</h1>
+    <p>Diese Erweiterung spricht nur mit der Doomscroll-Blocker-App auf diesem Rechner (127.0.0.1). Trage hier einmal den Kopplungscode ein, den die App im Reiter „Erweiterung“ zeigt.</p>
+    <form id="form">
+      <label for="token">Kopplungscode</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false" required>
+      <div class="actions">
+        <button class="btn primary" type="submit">Speichern und verbinden</button>
+      </div>
+    </form>
+    <p id="connection" class="status" role="status">Prüfe …</p>
+    <p id="incognito" class="status" role="status"></p>
+    <p id="howto" hidden></p>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
