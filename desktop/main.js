@@ -29,6 +29,8 @@ const updater = require('./src/updater');
 
 const VERSION = require('./package.json').version;
 const INDEX = path.join(__dirname, 'src', 'ui', 'index.html');
+// Gepackt liegt die Erweiterung als extraResources neben app.asar (Browser laden nicht aus asar).
+const EXTENSION_DIR = app.isPackaged ? path.join(process.resourcesPath, 'extension') : path.join(__dirname, 'extension');
 const INDEX_URL = pathToFileURL(INDEX).href;
 const PORT = Number(process.env.DOOMSCROLL_PORT) || server.DEFAULT_PORT;
 const STARTED = Date.now();
@@ -126,7 +128,7 @@ function viewModel() {
     },
     hints: HINTS,
     adultWords: store.adultWords,
-    extension: { families: ext.families, problems: ext.problems, port: PORT, serverError },
+    extension: { families: ext.families, problems: ext.problems, port: PORT, serverError, dir: EXTENSION_DIR },
     update: { available: update.available ? { version: update.available.version, notes: update.available.notes } : null, checking: update.checking, error: update.error, popup: Boolean(popup) },
     whatsNew,
     options: { THEMES, GLASS, ANIMATIONS },

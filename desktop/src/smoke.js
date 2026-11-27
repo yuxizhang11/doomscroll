@@ -87,6 +87,7 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     const vm = await js('window.doomscroll.getState()');
     check('ipcGetState', vm && vm.version === '0.1.0' && vm.apps.length === 3);
     check('extensionProblemsShown', vm.extension.problems.some((p) => p.key === 'firefox:incognito'), vm.extension.problems);
+    check('extensionDirHasManifest', fs.existsSync(path.join(vm.extension.dir, 'manifest.json')), vm.extension.dir);
     const ch = await js("window.doomscroll.newChallenge('QUIT')");
     check('quitChallengeIs20Chars', ch?.kind === 'code' && ch.text.length === 20);
     const wrong = await js("window.doomscroll.submitChallenge('QUIT', 'falsch')");

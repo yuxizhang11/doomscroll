@@ -10,15 +10,25 @@ npm install
 npm start
 ```
 
-Beim ersten Start zeigt sich das Fenster, danach sitzt die App im Tray (Klick öffnet das Fenster). Der Start mit Windows ist standardmäßig an (`--hidden`, also ohne Fenster); Ausschalten braucht 20 abgetippte Zeichen. Achtung: Mit `npm start` trägt sich der Autostart auf den Entwicklungsordner ein, bis es eine installierbare Fassung gibt.
+Beim ersten Start zeigt sich das Fenster, danach sitzt die App im Tray (Klick öffnet das Fenster). Der Start mit Windows ist standardmäßig an (`--hidden`, also ohne Fenster); Ausschalten braucht 20 abgetippte Zeichen. Achtung: Mit `npm start` trägt sich der Autostart auf den Entwicklungsordner ein; die installierte Fassung (siehe „Installer bauen“) trägt ihre eigene Exe ein.
 
 Zum Beenden: Tray-Menü „Beenden …“ oder Reiter „Mehr“, dann 20 Zeichen abtippen. Das Fenster schließen lässt die App im Tray weiterlaufen.
+
+## Installer bauen
+
+```
+cd desktop
+npm install
+npm run dist
+```
+
+Ergebnis: `desktop/dist/Doomscroll-Desktop-Setup-<version>.exe` (NSIS, Windows x64, Installation pro Benutzer, Zielordner wählbar) und der entpackte Stand `desktop/dist/win-unpacked/`. Die Erweiterung liegt im installierten Stand unter `resources/extension` (als `extraResources`, weil Browser nicht aus `asar` laden); der Reiter „Erweiterung“ zeigt diesen Pfad zum Laden an. Der Installer ist nicht signiert (kein Zertifikat), Windows SmartScreen warnt deshalb beim ersten Start. Selbsttest des gebauten Stands: `DOOMSCROLL_SMOKE_DIR=<ordner>` setzen und `dist/win-unpacked/"Doomscroll Desktop.exe" --smoke` starten.
 
 ## Browser-Erweiterung
 
 `extension/` ist eine Manifest-V3-Erweiterung für Chrome, Edge, Brave und Firefox (ab 121). Sie meldet alle 2 Sekunden die Adressen der aktiven Tabs an die App und leitet Tabs, die die App sperrt, auf „Genug für heute!“ bzw. „Diese Seite ist gesperrt“ um. Gezählt und entschieden wird nur in der App. Die Sperrseite kommt vom lokalen Server der App (`http://127.0.0.1:47615/blocked`) und nicht aus der Erweiterung, weil Chrome Erweiterungsseiten nicht in private Tabs lädt, solange die Erweiterung `incognito: "spanning"` hat.
 
-- Chrome, Edge, Brave: Erweiterungen, Entwicklermodus, „Entpackte Erweiterung laden“, Ordner `desktop/extension`. Chrome zeigt eine Warnung zu `background.scripts`: Das Manifest enthält absichtlich `service_worker` (Chrome) und `scripts` (Firefox) in einer Datei.
+- Chrome, Edge, Brave: Erweiterungen, Entwicklermodus, „Entpackte Erweiterung laden“, Ordner `desktop/extension` (installiert: der Pfad aus dem Reiter „Erweiterung“). Chrome zeigt eine Warnung zu `background.scripts`: Das Manifest enthält absichtlich `service_worker` (Chrome) und `scripts` (Firefox) in einer Datei.
 - Firefox: `about:debugging`, „Dieser Firefox“, „Temporäres Add-on laden“, `desktop/extension/manifest.json` (bleibt bis zum Neustart des Browsers; eine dauerhafte Installation braucht eine signierte Fassung).
 - Danach im Reiter „Erweiterung“ der App den Kopplungscode kopieren und in den Einstellungen der Erweiterung einfügen.
 
@@ -56,6 +66,6 @@ Grenze: Ein anderes Programm, das den Code kennt oder die Datendatei lesen darf,
 
 ## Updates und Release
 
-Die App sucht beim Start und alle 6 Stunden auf GitHub nach Releases mit dem Tag `desktop-vX.Y.Z` und einer `.exe` (die Android-Releases im selben Repo werden übersprungen). „Update laden“ sucht vorher noch einmal neu und öffnet den Download im Browser. Es gibt noch keinen Build und kein Release.
+Die App sucht beim Start und alle 6 Stunden auf GitHub nach Releases mit dem Tag `desktop-vX.Y.Z` und einer `.exe` (die Android-Releases im selben Repo werden übersprungen). „Update laden“ sucht vorher noch einmal neu und öffnet den Download im Browser. Der Installer lässt sich lokal bauen (siehe oben), ein Release gibt es noch nicht.
 
 Wichtig fürs spätere Release: Die Handy-App fragt `/releases/latest` ab. Ein Desktop-Release darf deshalb nie als „latest“ markiert werden (`gh release create desktop-vX.Y.Z --latest=false`), sonst findet die Handy-App kein APK mehr und meldet einen Fehler. Alternative wäre ein eigenes Repo.

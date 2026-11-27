@@ -6,3 +6,6 @@ local.properties
 .DS_Store
 captures/
 .kotlin/
+
+# Desktop-Build
+desktop/dist/

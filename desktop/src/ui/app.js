@@ -254,7 +254,7 @@ function pageExtension() {
 
   const setup = card('Erweiterung einrichten',
     h('ol', { class: 'steps' },
-      h('li', null, 'Chrome, Edge, Brave: Erweiterungen öffnen, Entwicklermodus einschalten, „Entpackte Erweiterung laden“ und den Ordner ', h('code', null, 'desktop/extension'), ' wählen.'),
+      h('li', null, 'Chrome, Edge, Brave: Erweiterungen öffnen, Entwicklermodus einschalten, „Entpackte Erweiterung laden“ und den Ordner ', h('code', null, state.extension.dir), ' wählen.'),
       h('li', null, 'Firefox: ', h('code', null, 'about:debugging'), ' öffnen, „Dieser Firefox“, „Temporäres Add-on laden“ und die Datei ', h('code', null, 'manifest.json'), ' im selben Ordner wählen.'),
       h('li', null, 'In den Einstellungen der Erweiterung den Kopplungscode einfügen:')),
     h('button', { type: 'button', class: 'btn primary block', onclick: async () => { await api.copyToken(); toast('Kopplungscode kopiert'); } }, 'Kopplungscode kopieren'),

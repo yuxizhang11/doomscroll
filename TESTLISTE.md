@@ -28,6 +28,15 @@ Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vor
 - [ ] Zeitumstellung oder Mitternacht: Zähler beginnen neu, gestern steht in „Letzte 7 Tage“.
 - [ ] Glas „Aus“, „Einfach“, „Voll“, Hell und Dunkel, Schriftgröße „Riesig“: alles lesbar, nichts überlappt.
 
+Installer (`cd desktop && npm run dist`, unsigniert):
+
+- [ ] `Doomscroll-Desktop-Setup-0.1.0.exe` startet (SmartScreen: „Weitere Informationen“, „Trotzdem ausführen“), lässt den Zielordner wählen und installiert ohne Administratorrechte.
+- [ ] Nach der Installation startet „Doomscroll Desktop“ mit Tray-Symbol und Fenster; Startmenü- und Desktop-Verknüpfung vorhanden.
+- [ ] Autostart: In Windows (Task-Manager, Autostart-Apps) steht „Doomscroll Desktop“ mit dem Installationsordner, nicht mit dem Entwicklungsordner; nach Neustart startet die App ohne Fenster im Tray.
+- [ ] Reiter „Erweiterung“ zeigt einen Pfad unter dem Installationsordner (`…esourcesextension`); dieser Ordner lässt sich in Chrome, Edge und Brave als „Entpackte Erweiterung“ laden, `manifest.json` in Firefox als temporäres Add-on.
+- [ ] Installieren über eine ältere Fassung behält Limits und Verlauf.
+- [ ] Deinstallieren (Windows-Einstellungen, Apps) entfernt Programmordner und Verknüpfungen; der Autostart-Eintrag verschwindet ebenfalls (sonst melden).
+
 ## 1.28
 
 - [ ] Porno-Blocker: Schalter steht auf „an“ und lässt sich nicht antippen, kein Code-Feld, kein „Heute aufheben“.
