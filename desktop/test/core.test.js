@@ -32,6 +32,11 @@ test('Porno-Filter: Seitennamen, Wörter und ganze Wörter', () => {
   assert.ok(isPorn('https://de.tube8.com/x'));
 });
 
+test('Porno-Filter: Domain-Liste gilt auch mit Punkt am Ende, Port, Benutzerteil und Fragment', () => {
+  for (const u of ['https://beeg.com./', 'https://beeg.com:8443/x', 'https://name@beeg.com/', 'https://beeg.com#a', 'https://www.beeg.com./a']) assert.ok(isPorn(u), u);
+  assert.equal(isPorn('https://example.com/?u=name@beeg.org'), false);
+});
+
 test('Porno-Filter: harmlose Seiten bleiben offen', () => {
   assert.equal(isPorn('https://de.wikipedia.org/wiki/Sexualkunde'), false);
   assert.equal(isPorn('https://shop.example.com/tshirt-xxxl'), false);

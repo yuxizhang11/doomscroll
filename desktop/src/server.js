@@ -11,7 +11,7 @@
 
 const http = require('node:http');
 const crypto = require('node:crypto');
-const { parseWebUrl } = require('./core/targets');
+const { parseWebUrl, MAX_URL_LENGTH } = require('./core/targets');
 const blockedPage = require('./blocked-page');
 
 const DEFAULT_PORT = 47615;
@@ -40,7 +40,9 @@ function parseHeartbeat(body) {
     if (!t || typeof t !== 'object') return null;
     if (!Number.isSafeInteger(t.id) || typeof t.incognito !== 'boolean') return null;
     // Nur Webadressen; alles andere (chrome://, about:, Erweiterungsseiten) wird verworfen.
-    if (parseWebUrl(t.url)) clean.push({ id: t.id, url: t.url, incognito: t.incognito, focused: t.focused === true });
+    // Zu lange Adressen werden gekürzt statt verworfen: Host und Pfad stehen vorn, sonst ließe sich jede Sperre mit einem langen Anhang umgehen.
+    const url = typeof t.url === 'string' ? t.url.slice(0, MAX_URL_LENGTH) : t.url;
+    if (parseWebUrl(url)) clean.push({ id: t.id, url, incognito: t.incognito, focused: t.focused === true });
   }
   return {
     client,

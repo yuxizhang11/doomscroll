@@ -51,7 +51,8 @@ function matches(text, ownWords) {
   if ([...ownWords].some((w) => text.includes(w))) return true;
   if (WHOLE_WORDS.test(text)) return true;
   return text.split(/\r?\n/).some((line) => {
-    const host = line.trim().split('://').pop().split('/')[0].split('?')[0].replace(/^www\./, '');
+    // Nur der Host zählt: Benutzerteil, Port, Fragment und Punkt am Ende (beeg.com.) dürfen die Liste nicht umgehen.
+    const host = line.trim().split('://').pop().split(/[/?#]/)[0].split('@').pop().split(':')[0].replace(/\.$/, '').replace(/^www\./, '');
     return DOMAINS.some((d) => host === d || host.endsWith('.' + d));
   });
 }

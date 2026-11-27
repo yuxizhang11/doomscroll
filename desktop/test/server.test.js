@@ -84,6 +84,13 @@ test('Server: Fehler in der Zähllogik gibt 500 und stürzt nicht ab', async (t)
   assert.equal((await post(GOOD)).status, 500);
 });
 
+test('Meldung: sehr lange Adressen werden gekürzt und nicht verworfen', () => {
+  const url = 'https://www.instagram.com/reels/?x=' + 'a'.repeat(10000);
+  const parsed = parseHeartbeat({ ...GOOD, tabs: [{ id: 1, url, incognito: false }] });
+  assert.equal(parsed.tabs.length, 1);
+  assert.ok(parsed.tabs[0].url.startsWith('https://www.instagram.com/reels/'));
+});
+
 test('Meldung: strenge Prüfung', () => {
   assert.ok(parseHeartbeat(GOOD));
   assert.equal(parseHeartbeat(null), null);
