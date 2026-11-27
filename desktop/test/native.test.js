@@ -72,7 +72,7 @@ test('Startdatei des Hosts: Electron als Node, Pfade mit Leerzeichen und %, kein
   for (const bad of ['C:\\a"b', 'C:\\a\nb', 5]) assert.throws(() => nm.hostCmd({ exe: bad, script: 's', pairingFile: 'p' }));
 });
 
-test('Pfade: Erweiterungsordner und Host gepackt neben app.asar, sonst im Projekt', () => {
+test('Pfade: Erweiterungsordner, Firefox-Fassung und Host gepackt neben app.asar, sonst im Projekt', () => {
   const packed = { isPackaged: true, resourcesPath: 'C:\\App\\resources', appDir: 'C:\\App\\resources\\app.asar' };
   assert.equal(nm.extensionDir(packed), path.join('C:\\App\\resources', 'extension'));
   assert.equal(nm.hostScript(packed), path.join('C:\\App\\resources', 'native-host', 'host.js'));
@@ -82,7 +82,7 @@ test('Pfade: Erweiterungsordner und Host gepackt neben app.asar, sonst im Projek
   assert.ok(fs.existsSync(nm.extensionDir({ isPackaged: false, appDir: path.join(__dirname, '..') })), 'Entwicklungsordner der Erweiterung existiert');
   assert.ok(fs.existsSync(nm.hostScript({ isPackaged: false, appDir: path.join(__dirname, '..') })));
   const pkg = require('../package.json');
-  assert.deepEqual(pkg.build.extraResources.map((r) => r.to).sort(), ['extension', 'native-host'], 'beides wird mitgepackt');
+  assert.deepEqual(pkg.build.extraResources.map((r) => r.to).sort(), ['extension', 'firefox', 'native-host'], 'Erweiterung, signierte Firefox-Fassung und Host werden mitgepackt');
 });
 
 // ---------- Host-Protokoll ----------

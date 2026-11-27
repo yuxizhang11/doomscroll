@@ -26,6 +26,7 @@ const { evaluate } = require('./src/core/extension-status');
 const nm = require('./src/core/native-messaging');
 const browsers = require('./src/core/browsers');
 const flyout = require('./src/core/flyout');
+const firefoxPolicy = require('./src/core/firefox-policy');
 const nativeSetup = require('./src/native-setup');
 const persist = require('./src/persist');
 const server = require('./src/server');
@@ -52,7 +53,6 @@ let win = null;
 let stage = 'compact'; // Panel: 'compact' (kleines Flyout am Tray) oder 'full' (aufgeklappt, alle Reiter)
 let hiddenAt = null; // wann das Panel zuletzt verschwand (siehe flyout.ignoreTrayClick)
 let resizing = null; // laufende Aufklapp-Animation
-let nativeDialogs = 0; // offene Dateidialoge der App (sie nehmen dem Fenster den Fokus)
 let focusedSinceShow = false; // hatte das Fenster seit dem Öffnen den Fokus
 let httpServer = null;
 let allowQuit = false;
@@ -60,6 +60,7 @@ let serverError = null;
 let running = null; // laufende Prozessnamen, null = unbekannt
 let installed = []; // erkannte Browser: [{id, label, exe}]
 let browsersKnown = false; // die erste Suche nach Browsern ist durch
+let firefoxXpi = { present: false, active: false }; // signierte Fassung liegt bei / Firefox-Richtlinie verweist darauf
 let nativeErrors = []; // Fehler beim Einrichten der automatischen Kopplung
 let update = { available: null, checking: false, error: null, offered: null };
 const challenges = new Map();
@@ -117,6 +118,21 @@ async function refreshBrowsers() {
   if (process.platform !== 'win32') return;
   installed = await browsers.detectBrowsers({ env: process.env, exists: fs.existsSync, appPath });
   browsersKnown = true;
+}
+
+/** Liegt die signierte Firefox-Erweiterung bei, und hat der Installer sie in die Firefox-Richtlinie eingetragen (nur Lesen)? */
+async function refreshFirefoxXpi() {
+  if (process.platform !== 'win32') return;
+  const xpi = firefoxPolicy.xpiPath(LOCATION);
+  const present = fs.existsSync(xpi);
+  let active = false;
+  if (present) {
+    for (const hive of ['HKLM', 'HKCU']) {
+      const out = await new Promise((resolve) => execFile('reg', ['query', `${hive}\\${firefoxPolicy.POLICY_KEY}`, '/reg:64'], { windowsHide: true, timeout: 5_000 }, (err, text) => resolve(err ? '' : text)));
+      if (firefoxPolicy.policyListsXpi(out, xpi)) active = true;
+    }
+  }
+  firefoxXpi = { present, active };
 }
 
 /** Trägt Host-Manifeste und Registry-Einträge für die automatische Kopplung ein (bei jedem Start, nur Änderungen). */
@@ -178,7 +194,7 @@ function viewModel() {
     hints: HINTS,
     adultWords: store.adultWords,
     extension: {
-      families: ext.families, problems: ext.problems, port: PORT, serverError, dir: EXTENSION_DIR, id: nm.EXTENSION_ID, nativeErrors, browsersKnown,
+      families: ext.families, problems: ext.problems, port: PORT, serverError, dir: EXTENSION_DIR, id: nm.EXTENSION_ID, nativeErrors, browsersKnown, firefoxXpi,
       // Ohne je verbundene Erweiterung öffnet sich die Oberfläche auf dem Reiter „Erweiterung“.
       needsSetup: store.data.extension_connected !== true && Object.values(ext.families).every((f) => f.state !== 'ok'),
       browsers: installed.map((b) => ({
@@ -353,9 +369,9 @@ function showWindow(next = 'full', tab) {
       }
     });
     win.on('hide', () => { hiddenAt = Date.now(); });
-    // Beide Stufen schließen bei Fokusverlust (Ausnahmen: flyout.shouldHideOnBlur).
+    // Nur das kleine Panel schließt bei Fokusverlust (Regeln: flyout.shouldHideOnBlur); das aufgeklappte Fenster bleibt offen.
     win.on('focus', () => { focusedSinceShow = true; });
-    win.on('blur', () => { if (flyout.shouldHideOnBlur({ animating: resizing !== null, dialogOpen: nativeDialogs > 0, focusedSinceShow })) win.hide(); });
+    win.on('blur', () => { if (flyout.shouldHideOnBlur({ stage, animating: resizing !== null, focusedSinceShow })) win.hide(); });
     // Windows fährt herunter: das Fenster darf das Herunterfahren nicht aufhalten.
     win.on('session-end', () => { allowQuit = true; });
     win.loadFile(INDEX);
@@ -391,16 +407,6 @@ function handle(channel, fn) {
     if (!trusted(event)) throw new Error('nicht erlaubt');
     return fn(...args);
   });
-}
-
-/** Solange ein Dateidialog offen ist, schließt der Fokusverlust das Panel nicht. */
-async function withDialog(open) {
-  nativeDialogs++;
-  try {
-    return await open();
-  } finally {
-    nativeDialogs--;
-  }
 }
 
 function applyPending(next) {
@@ -500,7 +506,7 @@ handle('extension:copyPath', () => {
 
 handle('backup:export', async () => {
   const day = localDay(new Date());
-  const res = await withDialog(() => dialog.showSaveDialog(win, { title: 'Datensicherung speichern', defaultPath: `doomscroll-desktop-${day}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] }));
+  const res = await dialog.showSaveDialog(win, { title: 'Datensicherung speichern', defaultPath: `doomscroll-desktop-${day}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] });
   if (res.canceled || !res.filePath) return { ok: false, message: '' };
   try {
     fs.writeFileSync(res.filePath, backup.write(store, VERSION), 'utf8');
@@ -511,7 +517,7 @@ handle('backup:export', async () => {
 });
 
 handle('backup:import', async () => {
-  const res = await withDialog(() => dialog.showOpenDialog(win, { title: 'Datensicherung öffnen', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] }));
+  const res = await dialog.showOpenDialog(win, { title: 'Datensicherung öffnen', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
   if (res.canceled || res.filePaths.length === 0) return { ok: false, message: '' };
   let text;
   try {
@@ -581,6 +587,7 @@ function start() {
   createTray();
   setupNative();
   refreshBrowsers().catch(() => {});
+  refreshFirefoxXpi().catch(() => {});
   server.start({ token: token(), port: PORT, onHeartbeat })
     .then((s) => { httpServer = s; })
     .catch((err) => {
@@ -591,7 +598,7 @@ function start() {
     });
   refreshProcesses();
   setInterval(refreshProcesses, 30_000);
-  setInterval(() => refreshBrowsers().catch(() => {}), 60_000);
+  setInterval(() => { refreshBrowsers().catch(() => {}); refreshFirefoxXpi().catch(() => {}); }, 60_000);
   setInterval(() => { refreshTray(); checkExtension(); }, 10_000);
   setInterval(() => checkUpdate(true), updater.CHECK_EVERY_MS);
   setTimeout(() => checkUpdate(true), 5_000);

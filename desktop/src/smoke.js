@@ -98,6 +98,7 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     check('extensionDirHasManifest', fs.existsSync(path.join(vm.extension.dir, 'manifest.json')), vm.extension.dir);
     // Einrichtung: Browser werden nur gelesen; ungültige Aufrufe starten nichts (echte Starts und die Zwischenablage bleiben ungetestet).
     check('browsersDetected', Array.isArray(vm.extension.browsers) && vm.extension.browsers.every((b) => ['chrome', 'edge', 'brave', 'firefox'].includes(b.id)), vm.extension.browsers.map((b) => b.id));
+    check('firefoxXpiStateReported', typeof vm.extension.firefoxXpi?.present === 'boolean' && typeof vm.extension.firefoxXpi?.active === 'boolean', vm.extension.firefoxXpi);
     check('extensionIdSet', /^[a-p]{32}$/.test(vm.extension.id));
     check('openBrowserRejectsUnknown', (await js("window.doomscroll.openBrowser('cmd', 'extensions')")).ok === false && (await js("window.doomscroll.openBrowser('chrome', 'file:///C:/Windows/notepad.exe')")).ok === false);
     check('needsSetupEndsWithConnection', vm.extension.needsSetup === false);
@@ -133,6 +134,7 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     await sleep(500);
     if (await js("(() => { const l = [...document.querySelectorAll('.seg label')].find((x) => x.textContent === 'Firefox'); if (!l) return false; l.querySelector('input').click(); return true; })()")) {
       await sleep(500);
+      check('firefoxSetupExplainsPersistence', await js("document.body.textContent.includes('Neustart')"));
       await js('window.scrollTo(0, 420)');
       await sleep(300);
       await shot(win, path.join(dir, 'erweiterung-firefox.png'));
@@ -213,7 +215,7 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     getWin('compact');
     await sleep(500);
     check('reopenIsCompact', win.isVisible() && (await stageNow()) === 'compact' && dims() === '360x480', `${await stageNow()} ${dims()}`);
-    // Fokusverlust (Ereignisse von Hand ausgelöst, das Testfenster ist nicht fokussierbar): ohne vorherigen Fokus bleibt das Panel, danach schließt es, klein wie aufgeklappt
+    // Fokusverlust (Ereignisse von Hand ausgelöst, das Testfenster ist nicht fokussierbar): das kleine Panel schließt erst nach Fokus, das aufgeklappte bleibt offen
     win.emit('blur');
     check('blurWithoutFocusKeepsPanel', win.isVisible());
     win.emit('focus');
@@ -222,10 +224,12 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     getWin('full');
     await sleep(500);
     win.emit('blur');
-    check('blurWithoutFocusKeepsFullAfterShow', win.isVisible());
     win.emit('focus');
     win.emit('blur');
-    check('blurClosesFullPanel', !win.isVisible());
+    check('blurKeepsFullPanelOpen', win.isVisible() && (await stageNow()) === 'full');
+    await js("document.getElementById('panel-close').click()");
+    await sleep(300);
+    check('closeButtonHidesFullPanel', !win.isVisible());
     getWin('compact');
     await sleep(500);
     // „Mehr“ klappt auf (mit Animation), danach Fotos; „Erweiterung einrichten“ springt auf den Reiter

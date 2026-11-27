@@ -126,7 +126,7 @@ function problemBanner() {
   if (ex.serverError) lines.push(ex.serverError);
   for (const p of ex.problems) {
     lines.push(p.kind === 'missing'
-      ? `${p.label} läuft, aber die Erweiterung meldet sich nicht. Dort wird nichts gezählt oder gesperrt.`
+      ? `${p.label} läuft, aber die Erweiterung meldet sich nicht. Dort wird nichts gezählt oder gesperrt. Nach einem Neustart des Browsers kann sie ausgeschaltet oder weg sein: Im Reiter „Erweiterung“ steht der Weg zurück.`
       : `Die Erweiterung in ${p.label} darf nicht in privaten Fenstern laufen. Dort ist nichts gesperrt.`);
   }
   const connected = Object.values(ex.families).some((f) => f.state === 'ok');
@@ -294,6 +294,12 @@ function folderButtons() {
 
 function setupSteps(b) {
   const open = h('button', { type: 'button', class: 'btn primary', onclick: () => openPage(b.id, 'extensions') }, `${b.label} öffnen und Erweiterungsseite zeigen`);
+  if (b.id === 'firefox' && state.extension.firefoxXpi.active) {
+    return h('ol', { class: 'steps' },
+      h('li', null, 'Firefox einmal ganz beenden und neu starten. Die Erweiterung ist per Firefox-Richtlinie fest eingetragen und kommt von selbst (', h('code', null, 'about:policies'), ' zeigt die Richtlinie, ', h('code', null, 'about:addons'), ' die Erweiterung).'),
+      h('li', null, 'Private Fenster erlauben: ', h('code', null, 'about:addons'), ' öffnen, „Doomscroll Blocker“ wählen und „In privaten Fenstern ausführen“ auf „Erlauben“ stellen.'),
+      h('li', null, 'Fertig: Oben steht „Erweiterung verbunden“, sobald sich App und Erweiterung gefunden haben.'));
+  }
   if (b.id === 'firefox') {
     return h('ol', { class: 'steps' },
       h('li', null, 'Firefox mit der Seite zum Testen von Add-ons öffnen.', h('div', { class: 'row-actions' }, open)),
@@ -308,6 +314,17 @@ function setupSteps(b) {
     h('li', null, `Private Fenster erlauben: die Detailseite der Erweiterung öffnen und „${b.incognitoLabel}“ einschalten.`,
       h('div', { class: 'row-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => openPage(b.id, 'details') }, 'Detailseite der Erweiterung öffnen'))),
     h('li', null, 'Fertig: Oben steht „Erweiterung verbunden“, sobald sich App und Erweiterung gefunden haben. Einen Code musst du nicht kopieren.'));
+}
+
+/** Ehrlicher Hinweis, ob und wie lange die Erweiterung nach einem Neustart des Browsers bleibt. */
+function persistenceNote(b) {
+  if (b.id === 'firefox') {
+    const x = state.extension.firefoxXpi;
+    if (x.active) return 'Diese Installation bleibt nach Neustarts von Firefox bestehen. Sie verschwindet erst, wenn du die App deinstallierst.';
+    if (x.present) return 'Die von Mozilla signierte Fassung liegt bei, ist aber noch nicht in Firefox eingetragen. Das macht das Setup bei „Für alle Benutzer installieren“ (Administratorrechte); danach Firefox neu starten. Bis dahin gilt der temporäre Weg oben: Firefox behält ein temporär geladenes Add-on nur bis zum nächsten Neustart, dann wiederholst du die Schritte 1 und 2.';
+    return 'Firefox behält temporär geladene Add-ons nur bis zum nächsten Neustart des Browsers; danach wiederholst du die Schritte 1 und 2. Dauerhaft geht das in Firefox nur mit einer von Mozilla signierten Fassung der Erweiterung. Diese Fassung der App enthält noch keine.';
+  }
+  return 'Entpackte Erweiterungen bleiben nach einem Neustart des Browsers geladen, solange dieser Ordner an Ort und Stelle bleibt (die App muss also installiert bleiben). Chrome und Edge fragen beim Start unter Umständen „Erweiterungen im Entwicklermodus deaktivieren“: Lass sie dort nicht ausschalten. Schaltet der Browser die Erweiterung trotzdem aus oder entfernt sie, zeigt die App „Erweiterung fehlt“; dann auf der Erweiterungsseite wieder einschalten oder die Schritte 2 und 3 wiederholen. Fest per Richtlinie installieren geht in Chrome und Edge nur auf verwalteten Rechnern (Domäne, Firmenverwaltung) oder über den jeweiligen Store; beides gibt es hier nicht.';
 }
 
 function pageExtension() {
@@ -330,7 +347,7 @@ function pageExtension() {
     h('p', null, 'Die Erweiterung lädst du einmal selbst in den Browser. Die Kopplung mit der App läuft danach von selbst.'),
     pick,
     chosen ? setupSteps(chosen) : null,
-    chosen?.id === 'firefox' ? h('p', { class: 'muted' }, 'Firefox behält temporär geladene Add-ons nur bis zum nächsten Neustart des Browsers; danach wiederholst du die Schritte 1 und 2. Dauerhaft geht das in Firefox nur mit einer von Mozilla signierten Fassung der Erweiterung, und die gibt es noch nicht.') : null);
+    chosen ? h('p', { class: 'muted' }, persistenceNote(chosen)) : null);
 
   const manual = h('details', { class: 'card manual' },
     h('summary', null, 'Kopplung von Hand (nur wenn die automatische nicht klappt)'),
