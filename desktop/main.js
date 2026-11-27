@@ -52,6 +52,8 @@ let win = null;
 let stage = 'compact'; // Panel: 'compact' (kleines Flyout am Tray) oder 'full' (aufgeklappt, alle Reiter)
 let hiddenAt = null; // wann das Panel zuletzt verschwand (siehe flyout.ignoreTrayClick)
 let resizing = null; // laufende Aufklapp-Animation
+let nativeDialogs = 0; // offene Dateidialoge der App (sie nehmen dem Fenster den Fokus)
+let focusedSinceShow = false; // hatte das Fenster seit dem Öffnen den Fokus
 let httpServer = null;
 let allowQuit = false;
 let serverError = null;
@@ -351,14 +353,16 @@ function showWindow(next = 'full', tab) {
       }
     });
     win.on('hide', () => { hiddenAt = Date.now(); });
-    // Das kleine Panel schließt bei Fokusverlust; das aufgeklappte Fenster bleibt (Dateidialoge, Browserwechsel).
-    win.on('blur', () => { if (stage === 'compact' && !SMOKE) win.hide(); });
+    // Beide Stufen schließen bei Fokusverlust (Ausnahmen: flyout.shouldHideOnBlur).
+    win.on('focus', () => { focusedSinceShow = true; });
+    win.on('blur', () => { if (flyout.shouldHideOnBlur({ animating: resizing !== null, dialogOpen: nativeDialogs > 0, focusedSinceShow })) win.hide(); });
     // Windows fährt herunter: das Fenster darf das Herunterfahren nicht aufhalten.
     win.on('session-end', () => { allowQuit = true; });
     win.loadFile(INDEX);
   }
   const wasVisible = win.isVisible();
   if (!wasVisible || stage !== next) setStage(next, wasVisible);
+  if (!wasVisible) focusedSinceShow = false;
   win.show();
   win.focus();
   if (tab === 'erweiterung') {
@@ -387,6 +391,16 @@ function handle(channel, fn) {
     if (!trusted(event)) throw new Error('nicht erlaubt');
     return fn(...args);
   });
+}
+
+/** Solange ein Dateidialog offen ist, schließt der Fokusverlust das Panel nicht. */
+async function withDialog(open) {
+  nativeDialogs++;
+  try {
+    return await open();
+  } finally {
+    nativeDialogs--;
+  }
 }
 
 function applyPending(next) {
@@ -486,7 +500,7 @@ handle('extension:copyPath', () => {
 
 handle('backup:export', async () => {
   const day = localDay(new Date());
-  const res = await dialog.showSaveDialog(win, { title: 'Datensicherung speichern', defaultPath: `doomscroll-desktop-${day}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] });
+  const res = await withDialog(() => dialog.showSaveDialog(win, { title: 'Datensicherung speichern', defaultPath: `doomscroll-desktop-${day}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] }));
   if (res.canceled || !res.filePath) return { ok: false, message: '' };
   try {
     fs.writeFileSync(res.filePath, backup.write(store, VERSION), 'utf8');
@@ -497,7 +511,7 @@ handle('backup:export', async () => {
 });
 
 handle('backup:import', async () => {
-  const res = await dialog.showOpenDialog(win, { title: 'Datensicherung öffnen', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
+  const res = await withDialog(() => dialog.showOpenDialog(win, { title: 'Datensicherung öffnen', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] }));
   if (res.canceled || res.filePaths.length === 0) return { ok: false, message: '' };
   let text;
   try {

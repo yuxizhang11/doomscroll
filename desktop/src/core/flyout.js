@@ -67,4 +67,12 @@ function ignoreTrayClick(hiddenAt, now, windowMs = 400) {
   return hiddenAt != null && now - hiddenAt >= 0 && now - hiddenAt < windowMs;
 }
 
-module.exports = { SIZES, GAP, taskbarEdge, nearestEdge, position, easeOut, lerpBounds, ignoreTrayClick };
+/**
+ * Fokusverlust schließt das Panel (klein wie aufgeklappt), außer: die Aufklapp-Animation läuft, ein Dateidialog der App ist offen
+ * oder das Fenster hatte seit dem Öffnen noch nie den Fokus (erster Start mit geführter Einrichtung, Windows gibt ihn nicht her).
+ */
+function shouldHideOnBlur({ animating, dialogOpen, focusedSinceShow }) {
+  return focusedSinceShow === true && !animating && !dialogOpen;
+}
+
+module.exports = { SIZES, GAP, taskbarEdge, nearestEdge, position, easeOut, lerpBounds, ignoreTrayClick, shouldHideOnBlur };

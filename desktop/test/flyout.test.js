@@ -108,6 +108,13 @@ test('Tray-Klick kurz nach dem Schließen durch Fokusverlust wird ignoriert', ()
   assert.equal(f.ignoreTrayClick(1100, 1000), false);
 });
 
+test('Fokusverlust schließt, außer bei Animation, offenem Dateidialog oder wenn das Fenster nie den Fokus hatte', () => {
+  assert.equal(f.shouldHideOnBlur({ animating: false, dialogOpen: false, focusedSinceShow: true }), true);
+  assert.equal(f.shouldHideOnBlur({ animating: true, dialogOpen: false, focusedSinceShow: true }), false);
+  assert.equal(f.shouldHideOnBlur({ animating: false, dialogOpen: true, focusedSinceShow: true }), false);
+  assert.equal(f.shouldHideOnBlur({ animating: false, dialogOpen: false, focusedSinceShow: false }), false);
+});
+
 test('Logo-Dateien sind da: ICO mit allen Größen, PNGs in der richtigen Größe', () => {
   const dir = path.join(__dirname, '..');
   const png = (rel) => {

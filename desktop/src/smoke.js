@@ -213,6 +213,21 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     getWin('compact');
     await sleep(500);
     check('reopenIsCompact', win.isVisible() && (await stageNow()) === 'compact' && dims() === '360x480', `${await stageNow()} ${dims()}`);
+    // Fokusverlust (Ereignisse von Hand ausgelöst, das Testfenster ist nicht fokussierbar): ohne vorherigen Fokus bleibt das Panel, danach schließt es, klein wie aufgeklappt
+    win.emit('blur');
+    check('blurWithoutFocusKeepsPanel', win.isVisible());
+    win.emit('focus');
+    win.emit('blur');
+    check('blurClosesCompactPanel', !win.isVisible());
+    getWin('full');
+    await sleep(500);
+    win.emit('blur');
+    check('blurWithoutFocusKeepsFullAfterShow', win.isVisible());
+    win.emit('focus');
+    win.emit('blur');
+    check('blurClosesFullPanel', !win.isVisible());
+    getWin('compact');
+    await sleep(500);
     // „Mehr“ klappt auf (mit Animation), danach Fotos; „Erweiterung einrichten“ springt auf den Reiter
     await js("window.doomscroll.setPref('theme','hell');window.doomscroll.setPref('glass','aus')");
     await js("document.getElementById('panel-more').click()");
