@@ -48,6 +48,13 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     const addr = getServer()?.address();
     check('serverBoundToLoopbackOnly', addr?.address === '127.0.0.1', addr);
 
+    // Erster Start: Das Fenster öffnet sich vor jeder Verbindung gleich auf dem Reiter „Erweiterung“ (needsSetup).
+    const first = getWin();
+    await new Promise((resolve) => (first.webContents.isLoading() ? first.webContents.once('did-finish-load', resolve) : resolve()));
+    await sleep(1200);
+    const currentTab = () => first.webContents.executeJavaScript("document.querySelector('.tabs [aria-current=page]')?.dataset.tab");
+    check('firstWindowStartsOnExtensionTab', (await currentTab()) === 'erweiterung', await currentTab());
+
     const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     const beat = (client, browser, incognitoAllowed, tabs, extra = {}) =>
       request(port, { headers: { ...auth, ...extra }, body: JSON.stringify({ client, browser, label: browser, version: '0.1.0', incognitoAllowed, tabs }) });
@@ -92,6 +99,11 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     check('browsersDetected', Array.isArray(vm.extension.browsers) && vm.extension.browsers.every((b) => ['chrome', 'edge', 'brave', 'firefox'].includes(b.id)), vm.extension.browsers.map((b) => b.id));
     check('extensionIdSet', /^[a-p]{32}$/.test(vm.extension.id));
     check('openBrowserRejectsUnknown', (await js("window.doomscroll.openBrowser('cmd', 'extensions')")).ok === false && (await js("window.doomscroll.openBrowser('chrome', 'file:///C:/Windows/notepad.exe')")).ok === false);
+    check('needsSetupEndsWithConnection', vm.extension.needsSetup === false);
+    await js("document.querySelector('[data-tab=mehr]').click()");
+    win.webContents.send('open-tab', 'erweiterung'); // wie das Tray-Menü „Erweiterung einrichten …“
+    await sleep(500);
+    check('openTabSwitchesToExtension', (await js("document.querySelector('.tabs [aria-current=page]')?.dataset.tab")) === 'erweiterung');
     const ch = await js("window.doomscroll.newChallenge('QUIT')");
     check('quitChallengeIs20Chars', ch?.kind === 'code' && ch.text.length === 20);
     const wrong = await js("window.doomscroll.submitChallenge('QUIT', 'falsch')");
@@ -114,6 +126,18 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
       await js(`window.doomscroll.setPref('theme','${theme === 'dark' ? 'dunkel' : 'hell'}');window.doomscroll.setPref('glass','${glass}');document.querySelector('[data-tab=${tab}]').click();`);
       await sleep(2600); // die Oberfläche übernimmt Darstellung alle 2 s
       await shot(win, path.join(dir, `${name}.png`));
+    }
+    // Einrichtung mit Firefox gewählt (Schritte, Hinweis, Kopplung von Hand), falls Firefox gefunden wurde
+    await js("document.querySelector('[data-tab=erweiterung]').click()");
+    await sleep(500);
+    if (await js("(() => { const l = [...document.querySelectorAll('.seg label')].find((x) => x.textContent === 'Firefox'); if (!l) return false; l.querySelector('input').click(); return true; })()")) {
+      await sleep(500);
+      await js('window.scrollTo(0, 420)');
+      await sleep(300);
+      await shot(win, path.join(dir, 'erweiterung-firefox.png'));
+      await js('window.scrollTo(0, 99999)');
+      await sleep(300);
+      await shot(win, path.join(dir, 'erweiterung-unten.png'));
     }
     await js("document.documentElement.dataset.theme='dark';document.documentElement.dataset.glass='einfach';document.querySelector('[data-tab=heute]').click();");
     // Dialog für den Entsperr-Satz öffnen und fotografieren

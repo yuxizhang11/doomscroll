@@ -18,6 +18,7 @@ Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vor
 - [ ] „Ordner öffnen“ zeigt im Explorer den Ordner `resources\extension` der installierten App (mit `manifest.json`), „Pfad kopieren“ legt genau diesen Pfad in die Zwischenablage.
 - [ ] Erweiterung in Chrome, Edge oder Brave als entpackte Erweiterung laden (Ordner aus der App): Ohne einen Code zu kopieren zeigt der Reiter „Erweiterung verbunden“ (Kopplung per Native Messaging, nach spätestens etwa 30 Sekunden).
 - [ ] „Detailseite der Erweiterung öffnen“ landet auf der Seite von „Doomscroll Blocker“; nach „In Inkognito zulassen“ (Edge: „In InPrivate zulassen“) steht „Private Fenster erlaubt“.
+- [ ] Update von der Fassung ohne feste Erweiterungs-ID: Die Erweiterung bekommt durch `key` eine neue ID. Prüfen, ob eine schon geladene Erweiterung weiterläuft oder entfernt und neu geladen werden muss, und ob der Status danach „verbunden“ zeigt (Code und die Erlaubnis für private Fenster gehen mit der alten ID verloren).
 - [ ] Dasselbe in Firefox (temporäres Add-on, `manifest.json` im Ordner wählen). Nach einem Neustart von Firefox ist das Add-on weg, der Reiter zeigt „Erweiterung fehlt“ und erklärt das.
 - [ ] Reiter „Erweiterung“, „Kopplung von Hand“: Code kopieren und in den Optionen der Erweiterung einfügen funktioniert weiter (zum Beispiel nach Entfernen von `HKCU\Software\Google\Chrome\NativeMessagingHosts\de.doomscroll.desktop`).
 - [ ] Tray-Menü „Erweiterung einrichten …“ öffnet das Fenster auf dem Reiter „Erweiterung“.

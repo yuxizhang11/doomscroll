@@ -250,7 +250,7 @@ function browserRows() {
       : h('span', { class: 'badge idle' }, 'Private Fenster unbekannt');
     return h('div', { class: 'row' }, h('span', { class: 'grow' }, b.label), h('span', { class: 'status-line' }, h('span', { class: `badge ${cls}` }, text), incog));
   });
-  if (list.some((b) => b.shared)) rows.push(h('p', { class: 'muted' }, 'Chrome und Brave lassen sich für die Erweiterung nicht unterscheiden: „Verbunden“ gilt für den Browser, in dem sie läuft.'));
+  if (list.some((b) => b.shared) && list.some((b) => b.id === 'chrome') && list.some((b) => b.id === 'brave')) rows.push(h('p', { class: 'muted' }, 'Chrome und Brave lassen sich für die Erweiterung nicht unterscheiden: „Verbunden“ gilt für den Browser, in dem sie läuft.'));
   return rows;
 }
 
@@ -496,7 +496,11 @@ for (const b of document.querySelectorAll('.tabs button')) {
   b.addEventListener('click', () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); view.focus({ preventScroll: true }); });
 }
 api.onOpenChallenge((scope) => openChallenge(scope));
-api.onOpenTab((name) => { if (name === 'erweiterung') { tab = name; render(); window.scrollTo(0, 0); } });
+api.onOpenTab((name) => { // kann vor dem ersten Zustand ankommen: dann zeichnet der Start den Reiter
+  if (name !== 'erweiterung') return;
+  tab = name;
+  if (state) { render(); window.scrollTo(0, 0); }
+});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => state && applyPrefs());
 
 // Live-Anzeige: nur Bereiche ohne Eingaben werden neu gezeichnet, damit nichts beim Tippen verspringt.
