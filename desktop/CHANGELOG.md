@@ -7,3 +7,4 @@
 - Sperre aufheben mit einem abgetippten Satz (mindestens 15 Wörter), Beenden und Autostart-Aus mit 20 Zeichen.
 - Porno-Blocker auf Adressen und Suchen, immer an, eigene Wörter nur ergänzbar.
 - Datensicherung als JSON mit Schema-Version, Update-Suche über GitHub.
+- Geführte Einrichtung der Browser-Erweiterung im Reiter „Erweiterung“ (Browser erkennen, Erweiterungsseite öffnen, Ordner öffnen, Pfad kopieren) und automatische Kopplung ohne Code zum Kopieren.

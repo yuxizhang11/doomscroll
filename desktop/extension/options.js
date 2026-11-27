@@ -3,7 +3,7 @@
 const api = globalThis.browser ?? globalThis.chrome;
 const isFirefox = Boolean(globalThis.browser?.runtime?.getBrowserInfo);
 const REASONS = {
-  token: 'Der Kopplungscode fehlt oder stimmt nicht.',
+  token: 'Die automatische Kopplung hat nicht geklappt, und der Kopplungscode fehlt oder stimmt nicht. Starte die App einmal und warte kurz.',
   offline: 'Die Doomscroll-Blocker-App läuft nicht oder ist nicht erreichbar.',
   http: 'Die App hat die Meldung abgelehnt.',
 };

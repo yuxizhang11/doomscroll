@@ -234,44 +234,90 @@ async function save() {
 
 // ---------- Erweiterung ----------
 
-const STATE_TEXT = { ok: ['Verbunden', 'ok'], missing: ['Meldet sich nicht', 'bad'], idle: ['Browser nicht gestartet', 'idle'], unknown: ['Unbekannt', 'idle'] };
+const STATE_TEXT = { ok: ['Erweiterung verbunden', 'ok'], missing: ['Erweiterung fehlt', 'bad'], idle: ['Browser nicht gestartet', 'idle'], unknown: ['Status unbekannt', 'idle'] };
+let setupBrowser = null; // Browser, für den die Schritte gezeigt werden
+let shownBrowsers = ''; // erkannte Browser der letzten Darstellung
 
-function familyRows() {
-  return Object.entries(state.extension.families).map(([, f]) => {
-    const [text, cls] = STATE_TEXT[f.state];
-    const incog = f.state !== 'ok' ? null
-      : f.incognito === 'denied' ? h('span', { class: 'badge bad' }, 'Private Fenster nicht erlaubt')
-      : f.incognito === 'ok' ? h('span', { class: 'badge ok' }, 'Private Fenster erlaubt')
+function browserRows() {
+  const list = state.extension.browsers;
+  if (!state.extension.browsersKnown) return [h('p', { class: 'muted' }, 'Suche nach installierten Browsern …')];
+  if (list.length === 0) return [h('p', { class: 'muted' }, 'Es wurde kein Chrome, Edge, Brave oder Firefox gefunden. Bei einem anderen Browser auf Chromium-Basis klappt dieselbe Einrichtung wie bei Chrome mit dem Ordner unten.')];
+  const rows = list.map((b) => {
+    const [text, cls] = STATE_TEXT[b.state];
+    const incog = b.state !== 'ok' ? null
+      : b.incognito === 'denied' ? h('span', { class: 'badge bad' }, 'Private Fenster nicht erlaubt')
+      : b.incognito === 'ok' ? h('span', { class: 'badge ok' }, 'Private Fenster erlaubt')
       : h('span', { class: 'badge idle' }, 'Private Fenster unbekannt');
-    return h('div', { class: 'row' }, h('span', { class: 'grow' }, f.label), h('span', { class: 'status-line' }, h('span', { class: `badge ${cls}` }, text), incog));
+    return h('div', { class: 'row' }, h('span', { class: 'grow' }, b.label), h('span', { class: 'status-line' }, h('span', { class: `badge ${cls}` }, text), incog));
   });
+  if (list.some((b) => b.shared)) rows.push(h('p', { class: 'muted' }, 'Chrome und Brave lassen sich für die Erweiterung nicht unterscheiden: „Verbunden“ gilt für den Browser, in dem sie läuft.'));
+  return rows;
+}
+
+async function openPage(id, target) {
+  const res = await api.openBrowser(id, target);
+  if (!res.ok) toast(res.message ?? 'Der Browser lässt sich nicht öffnen.');
+}
+
+function folderButtons() {
+  return [
+    h('code', { class: 'path' }, state.extension.dir),
+    h('div', { class: 'row-actions' },
+      h('button', { type: 'button', class: 'btn', onclick: async () => { const r = await api.openExtensionFolder(); if (!r.ok) toast(r.message); } }, 'Ordner öffnen'),
+      h('button', { type: 'button', class: 'btn', onclick: async () => { await api.copyExtensionPath(); toast('Pfad kopiert'); } }, 'Pfad kopieren')),
+  ];
+}
+
+function setupSteps(b) {
+  const open = h('button', { type: 'button', class: 'btn primary', onclick: () => openPage(b.id, 'extensions') }, `${b.label} öffnen und Erweiterungsseite zeigen`);
+  if (b.id === 'firefox') {
+    return h('ol', { class: 'steps' },
+      h('li', null, 'Firefox mit der Seite zum Testen von Add-ons öffnen.', h('div', { class: 'row-actions' }, open)),
+      h('li', null, 'Dort „Dieser Firefox“ wählen, dann „Temporäres Add-on laden …“ und im Ordner der Erweiterung die Datei ', h('code', null, 'manifest.json'), ' auswählen:', folderButtons()),
+      h('li', null, 'Private Fenster erlauben: ', h('code', null, 'about:addons'), ' öffnen, „Doomscroll Blocker“ wählen und „In privaten Fenstern ausführen“ auf „Erlauben“ stellen.'),
+      h('li', null, 'Fertig: Oben steht „Erweiterung verbunden“, sobald sich App und Erweiterung gefunden haben. Einen Code musst du nicht kopieren.'));
+  }
+  return h('ol', { class: 'steps' },
+    h('li', null, `${b.label} mit der Seite für Erweiterungen öffnen.`, h('div', { class: 'row-actions' }, open)),
+    h('li', null, b.id === 'edge' ? 'Links in der Seitenleiste „Entwicklermodus“ einschalten.' : 'Oben rechts „Entwicklermodus“ einschalten.'),
+    h('li', null, '„Entpackte Erweiterung laden“ wählen und diesen Ordner auswählen (im Dateidialog den Pfad in die Adresszeile einfügen):', folderButtons()),
+    h('li', null, `Private Fenster erlauben: die Detailseite der Erweiterung öffnen und „${b.incognitoLabel}“ einschalten.`,
+      h('div', { class: 'row-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => openPage(b.id, 'details') }, 'Detailseite der Erweiterung öffnen'))),
+    h('li', null, 'Fertig: Oben steht „Erweiterung verbunden“, sobald sich App und Erweiterung gefunden haben. Einen Code musst du nicht kopieren.'));
 }
 
 function pageExtension() {
-  const status = card('Browser', h('div', { id: 'family-rows' }, familyRows()),
-    state.extension.serverError ? h('p', { class: 'error' }, state.extension.serverError) : null,
+  const ex = state.extension;
+  const list = ex.browsers;
+  if (!list.some((b) => b.id === setupBrowser)) setupBrowser = (list.find((b) => b.state !== 'ok') ?? list[0])?.id ?? null;
+  const chosen = list.find((b) => b.id === setupBrowser);
+  shownBrowsers = ex.browsersKnown + list.map((b) => b.id).join();
+
+  const status = card('Browser', h('div', { id: 'family-rows' }, browserRows()),
+    ex.serverError ? h('p', { class: 'error' }, ex.serverError) : null,
+    ex.nativeErrors.length > 0 ? h('p', { class: 'error' }, `Die automatische Kopplung ließ sich nicht einrichten (${ex.nativeErrors.join(', ')}). Nutze unten die Kopplung von Hand.`) : null,
     h('p', { class: 'muted' }, 'Die App zählt nur, was die Erweiterung meldet. Ohne Erweiterung bleibt der Browser frei.'));
 
+  const pick = list.length > 1
+    ? h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Browser für die Einrichtung' },
+      list.map((b) => h('label', null, h('input', { type: 'radio', name: 'setup-browser', checked: b.id === setupBrowser, onchange: () => { setupBrowser = b.id; render(); } }), h('span', null, b.label))))
+    : null;
   const setup = card('Erweiterung einrichten',
-    h('ol', { class: 'steps' },
-      h('li', null, 'Chrome, Edge, Brave: Erweiterungen öffnen, Entwicklermodus einschalten, „Entpackte Erweiterung laden“ und den Ordner ', h('code', null, state.extension.dir), ' wählen.'),
-      h('li', null, 'Firefox: ', h('code', null, 'about:debugging'), ' öffnen, „Dieser Firefox“, „Temporäres Add-on laden“ und die Datei ', h('code', null, 'manifest.json'), ' im selben Ordner wählen.'),
-      h('li', null, 'In den Einstellungen der Erweiterung den Kopplungscode einfügen:')),
-    h('button', { type: 'button', class: 'btn primary block', onclick: async () => { await api.copyToken(); toast('Kopplungscode kopiert'); } }, 'Kopplungscode kopieren'),
-    h('p', { class: 'muted', style: 'margin-top:16px' }, `Die App lauscht nur auf 127.0.0.1, Port ${state.extension.port}. Der Code schützt sie vor anderen Programmen und Webseiten.`));
+    h('p', null, 'Die Erweiterung lädst du einmal selbst in den Browser. Die Kopplung mit der App läuft danach von selbst.'),
+    pick,
+    chosen ? setupSteps(chosen) : null,
+    chosen?.id === 'firefox' ? h('p', { class: 'muted' }, 'Firefox behält temporär geladene Add-ons nur bis zum nächsten Neustart des Browsers; danach wiederholst du die Schritte 1 und 2. Dauerhaft geht das in Firefox nur mit einer von Mozilla signierten Fassung der Erweiterung, und die gibt es noch nicht.') : null);
 
-  const priv = card('Private Fenster',
-    h('p', null, 'Die Erweiterung ist für private Fenster vorbereitet, aber der Browser verlangt, dass du das einmal selbst erlaubst:'),
-    h('ul', { class: 'notes' },
-      h('li', null, 'Chrome, Brave: Erweiterungen verwalten, bei Doomscroll Blocker „Details“, „In Inkognito zulassen“.'),
-      h('li', null, 'Edge: „In InPrivate zulassen“.'),
-      h('li', null, 'Firefox: about:addons, Doomscroll Blocker, „In privaten Fenstern ausführen“ auf „Erlauben“.')),
-    h('p', { class: 'muted', style: 'margin-top:8px' }, 'Die App zeigt oben „Private Fenster nicht erlaubt“, solange das fehlt.'));
+  const manual = h('details', { class: 'card manual' },
+    h('summary', null, 'Kopplung von Hand (nur wenn die automatische nicht klappt)'),
+    h('p', null, 'Kopiere den Kopplungscode und füge ihn in den Einstellungen der Erweiterung ein (Erweiterungsseite des Browsers, bei Doomscroll Blocker „Erweiterungsoptionen“).'),
+    h('button', { type: 'button', class: 'btn block', onclick: async () => { await api.copyToken(); toast('Kopplungscode kopiert'); } }, 'Kopplungscode kopieren'),
+    h('p', { class: 'muted', style: 'margin-top:16px' }, `Die App lauscht nur auf 127.0.0.1, Port ${ex.port}. Der Code schützt sie vor anderen Programmen und Webseiten.`));
 
   const admin = card('Fest erzwingen',
     h('p', null, 'Ohne Administratorrechte lässt sich nicht verhindern, dass jemand die Erweiterung entfernt oder einen anderen Browser nutzt. Mit Administratorrechten kann man sie per Browser-Richtlinie fest installieren und gegen Entfernen sperren (Chrome und Edge: ', h('code', null, 'ExtensionInstallForcelist'), ', Firefox: ', h('code', null, 'ExtensionSettings'), ', dort auch für private Fenster).'),
     h('p', { class: 'muted' }, 'Das richtet diese App nicht ein. Es ist nur ein Hinweis.'));
-  return [status, setup, priv, admin];
+  return [status, setup, manual, admin];
 }
 
 // ---------- Mehr ----------
@@ -450,6 +496,7 @@ for (const b of document.querySelectorAll('.tabs button')) {
   b.addEventListener('click', () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); view.focus({ preventScroll: true }); });
 }
 api.onOpenChallenge((scope) => openChallenge(scope));
+api.onOpenTab((name) => { if (name === 'erweiterung') { tab = name; render(); window.scrollTo(0, 0); } });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => state && applyPrefs());
 
 // Live-Anzeige: nur Bereiche ohne Eingaben werden neu gezeichnet, damit nichts beim Tippen verspringt.
@@ -467,8 +514,18 @@ setInterval(async () => {
     lastTodayKey = key;
     render(true);
   }
-  if (tab === 'erweiterung') document.getElementById('family-rows')?.replaceChildren(...familyRows());
+  if (tab === 'erweiterung') {
+    // Wurden Browser gerade erst erkannt, wird die Seite neu gebaut (sie hat keine Eingaben); sonst nur der Status.
+    const ids = state.extension.browsersKnown + state.extension.browsers.map((b) => b.id).join();
+    if (ids !== shownBrowsers) render(true);
+    else document.getElementById('family-rows')?.replaceChildren(...browserRows());
+  }
   maybePopups();
 }, 2000);
 
-refresh().then(maybePopups);
+// Fenster ohne verbundene Erweiterung (erster Start, später über den Tray geöffnet) beginnt bei der Einrichtung.
+refresh(false).then(() => {
+  if (state.extension.needsSetup) tab = 'erweiterung';
+  render();
+  maybePopups();
+});

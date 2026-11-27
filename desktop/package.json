@@ -32,6 +32,10 @@
       {
         "from": "extension",
         "to": "extension"
+      },
+      {
+        "from": "native-host",
+        "to": "native-host"
       }
     ],
     "win": {

@@ -13,8 +13,15 @@ Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vor
 - [ ] Limit erreicht, Browserfenster ohne Fokus: Der Tab ist trotzdem gesperrt, sobald er sichtbar ist.
 - [ ] Dasselbe in einem privaten Fenster: Die Sperrseite erscheint dort ebenfalls.
 - [ ] Tray-Symbol erscheint, Klick öffnet das Fenster, Schließen lässt die App im Tray.
-- [ ] Erweiterung in Chrome, Edge oder Brave laden, Kopplungscode einfügen: Reiter „Erweiterung“ zeigt „Verbunden“.
-- [ ] Dasselbe in Firefox (temporäres Add-on).
+- [ ] Frische Installation, erster Start: Das Fenster öffnet sich gleich auf dem Reiter „Erweiterung“ und erkennt die installierten Browser. Mit `--hidden` (Autostart) öffnet sich nichts.
+- [ ] „<Browser> öffnen und Erweiterungsseite zeigen“ öffnet in Chrome, Edge, Brave und Firefox die richtige Seite (`chrome://extensions`, `edge://extensions`, `brave://extensions`, `about:debugging`).
+- [ ] „Ordner öffnen“ zeigt im Explorer den Ordner `resources\extension` der installierten App (mit `manifest.json`), „Pfad kopieren“ legt genau diesen Pfad in die Zwischenablage.
+- [ ] Erweiterung in Chrome, Edge oder Brave als entpackte Erweiterung laden (Ordner aus der App): Ohne einen Code zu kopieren zeigt der Reiter „Erweiterung verbunden“ (Kopplung per Native Messaging, nach spätestens etwa 30 Sekunden).
+- [ ] „Detailseite der Erweiterung öffnen“ landet auf der Seite von „Doomscroll Blocker“; nach „In Inkognito zulassen“ (Edge: „In InPrivate zulassen“) steht „Private Fenster erlaubt“.
+- [ ] Dasselbe in Firefox (temporäres Add-on, `manifest.json` im Ordner wählen). Nach einem Neustart von Firefox ist das Add-on weg, der Reiter zeigt „Erweiterung fehlt“ und erklärt das.
+- [ ] Reiter „Erweiterung“, „Kopplung von Hand“: Code kopieren und in den Optionen der Erweiterung einfügen funktioniert weiter (zum Beispiel nach Entfernen von `HKCU\Software\Google\Chrome\NativeMessagingHosts\de.doomscroll.desktop`).
+- [ ] Tray-Menü „Erweiterung einrichten …“ öffnet das Fenster auf dem Reiter „Erweiterung“.
+- [ ] Update über die alte Version installieren (Setup): Die Einträge unter `NativeMessagingHosts\de.doomscroll.desktop` bleiben, nach dem Start zeigen sie auf die neue Exe. Deinstallieren entfernt sie wieder (Chrome, Edge, Brave, Chromium, Firefox), andere Einträge unter denselben Schlüsseln bleiben.
 - [ ] instagram.com/reels, youtube.com/shorts und tiktok.com zählen die Zeit; Feed, normale YouTube-Videos und Suche zählen nicht.
 - [ ] Limit auf 1 Minute: nach Ablauf erscheint „Genug für heute!“ im Tab, „Zur Startseite“ führt auf die normale Seite.
 - [ ] Sperre aufheben: Satz abtippen, Einfügen (Strg+V, Rechtsklick) geht nicht, danach zählt nichts mehr bis Mitternacht.

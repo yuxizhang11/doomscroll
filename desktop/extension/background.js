@@ -1,9 +1,13 @@
 'use strict';
 // Meldet der Doomscroll-Blocker-App (nur 127.0.0.1) alle ~2 s die Adressen der aktiven Tabs und
 // leitet die Tabs um, die die App als gesperrt zurückmeldet. Gezählt und entschieden wird in der App.
+// Kopplungscode und Port holt sich die Erweiterung selbst von der App (Native Messaging, Host de.doomscroll.desktop);
+// der Code aus der Optionsseite bleibt als Rückfall.
 
 const api = globalThis.browser ?? globalThis.chrome;
-const ENDPOINT = 'http://127.0.0.1:47615/v1/heartbeat';
+const DEFAULT_PORT = 47615;
+const NATIVE_HOST = 'de.doomscroll.desktop';
+const PAIR_EVERY_MS = 30000; // jede Kopplung startet ein Hilfsprogramm: nicht öfter als nötig versuchen
 const BEAT_MS = 2000;
 const RETRY_MS = 10000; // App nicht erreichbar: seltener versuchen
 const BLOCK_KINDS = new Set(['limit', 'quiet', 'porn']);
@@ -14,6 +18,7 @@ function browserLabel() {
   if (FAMILY === 'firefox') return 'Firefox';
   if (/Edg\//.test(ua)) return 'Edge';
   if (/OPR\//.test(ua)) return 'Opera';
+  if (navigator.brave) return 'Brave'; // nur wenn der Browser es im Hintergrundprozess verrät
   if (/Vivaldi/.test(ua)) return 'Vivaldi';
   return 'Chrome oder Brave';
 }
@@ -21,10 +26,29 @@ function browserLabel() {
 let busy = false;
 let again = false;
 let nextAllowed = 0;
+let nextPair = 0;
+let port = DEFAULT_PORT;
 let debounce = null;
 
+const validPort = (p) => Number.isInteger(p) && p >= 1024 && p <= 65535;
+
+/** Holt Kopplungscode und Port von der App über Native Messaging und merkt sie sich; false, wenn es nicht klappt. */
+async function pair() {
+  if (Date.now() < nextPair) return false;
+  nextPair = Date.now() + PAIR_EVERY_MS;
+  try {
+    const answer = await api.runtime.sendNativeMessage(NATIVE_HOST, { type: 'pair' });
+    if (answer?.ok !== true || typeof answer.token !== 'string' || !/^[0-9a-f]{64}$/.test(answer.token) || !validPort(answer.port)) return false;
+    await api.storage.local.set({ token: answer.token, port: answer.port });
+    return true;
+  } catch {
+    return false; // Host nicht eingerichtet: der Code von der Optionsseite gilt
+  }
+}
+
 async function identity() {
-  const stored = await api.storage.local.get(['token', 'client']);
+  const stored = await api.storage.local.get(['token', 'client', 'port']);
+  port = validPort(stored.port) ? stored.port : DEFAULT_PORT;
   let client = stored.client;
   if (typeof client !== 'string') {
     client = crypto.randomUUID();
@@ -56,7 +80,7 @@ async function block({ id, kind, app }) {
   // Die Seite kommt von der App und nicht aus der Erweiterung: Chrome lädt Erweiterungsseiten nicht in
   // private Tabs, wenn die Erweiterung `incognito: "spanning"` hat. about:blank ist der letzte Ausweg.
   try {
-    await api.tabs.update(id, { url: `http://127.0.0.1:47615/blocked?${query}` });
+    await api.tabs.update(id, { url: `http://127.0.0.1:${port}/blocked?${query}` });
   } catch {
     await api.tabs.update(id, { url: 'about:blank' }).catch(() => {}); // Tab ist schon zu: nichts zu tun
   }
@@ -69,11 +93,12 @@ async function beat(extraTab) {
   }
   busy = true;
   try {
-    const { token, client } = await identity();
+    let { token, client } = await identity();
+    if (!token && (await pair())) ({ token } = await identity());
     if (!token) return await setStatus({ ok: false, reason: 'token' });
     const incognitoAllowed = await Promise.resolve(api.extension.isAllowedIncognitoAccess()).catch(() => null);
     const tabs = await activeTabs(extraTab);
-    const res = await fetch(ENDPOINT, {
+    const res = await fetch(`http://127.0.0.1:${port}/v1/heartbeat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
@@ -86,7 +111,9 @@ async function beat(extraTab) {
       }),
     });
     if (!res.ok) {
-      nextAllowed = Date.now() + RETRY_MS;
+      // Code abgelehnt: bei neuem Code in der App holt die Kopplung den richtigen und es geht gleich weiter.
+      if (res.status === 401 && (await pair())) again = true; // gleich noch einmal mit dem neuen Code
+      else nextAllowed = Date.now() + RETRY_MS;
       return await setStatus({ ok: false, reason: res.status === 401 ? 'token' : 'http', incognitoAllowed });
     }
     const data = await res.json();

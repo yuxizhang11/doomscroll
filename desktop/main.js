@@ -6,7 +6,7 @@ const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, dialog, shell, cl
 const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
-const { execFile } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 
 const SMOKE = process.argv.includes('--smoke');
@@ -23,14 +23,19 @@ const unlock = require('./src/core/unlock');
 const backup = require('./src/core/backup');
 const { parseChangelog, isTrustedDownload } = require('./src/core/version');
 const { evaluate } = require('./src/core/extension-status');
+const nm = require('./src/core/native-messaging');
+const browsers = require('./src/core/browsers');
+const nativeSetup = require('./src/native-setup');
 const persist = require('./src/persist');
 const server = require('./src/server');
 const updater = require('./src/updater');
 
 const VERSION = require('./package.json').version;
 const INDEX = path.join(__dirname, 'src', 'ui', 'index.html');
-// Gepackt liegt die Erweiterung als extraResources neben app.asar (Browser laden nicht aus asar).
-const EXTENSION_DIR = app.isPackaged ? path.join(process.resourcesPath, 'extension') : path.join(__dirname, 'extension');
+// Gepackt liegen Erweiterung und Kopplungs-Host als extraResources neben app.asar (Browser laden nicht aus asar).
+const LOCATION = { isPackaged: app.isPackaged, resourcesPath: process.resourcesPath, appDir: __dirname };
+const EXTENSION_DIR = nm.extensionDir(LOCATION);
+const HOST_SCRIPT = nm.hostScript(LOCATION);
 const INDEX_URL = pathToFileURL(INDEX).href;
 const PORT = Number(process.env.DOOMSCROLL_PORT) || server.DEFAULT_PORT;
 const STARTED = Date.now();
@@ -47,6 +52,9 @@ let httpServer = null;
 let allowQuit = false;
 let serverError = null;
 let running = null; // laufende Prozessnamen, null = unbekannt
+let installed = []; // erkannte Browser: [{id, label, exe}]
+let browsersKnown = false; // die erste Suche nach Browsern ist durch
+let nativeErrors = []; // Fehler beim Einrichten der automatischen Kopplung
 let update = { available: null, checking: false, error: null, offered: null };
 const challenges = new Map();
 const notifiedProblems = new Set();
@@ -63,7 +71,7 @@ function minutesText(n) {
 }
 
 function applyAutostart() {
-  if (SMOKE) return;
+  if (SMOKE || process.env.DOOMSCROLL_NO_AUTOSTART) return; // Testläufe dürfen den Autostart der installierten App nicht verändern
   app.setLoginItemSettings({
     openAtLogin: store.autostart,
     path: process.execPath,
@@ -88,6 +96,40 @@ function refreshProcesses() {
     if (err) return;
     running = new Set(out.split(/\r?\n/).map((l) => /^"([^"]+)"/.exec(l)?.[1]?.toLowerCase()).filter(Boolean));
   });
+}
+
+/** Pfad der Exe aus der Registry (App Paths), HKLM vor HKCU; null, wenn es keinen Eintrag gibt. */
+function appPath(exe) {
+  const query = (hive) => new Promise((resolve) => {
+    const key = `${hive}\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${exe}`;
+    execFile('reg', ['query', key, '/ve'], { windowsHide: true, timeout: 5_000 }, (err, out) => resolve(err ? null : /REG_SZ\s+(.+?)\s*$/m.exec(out)?.[1]?.replace(/^"|"$/g, '') ?? null));
+  });
+  return query('HKLM').then((p) => p ?? query('HKCU'));
+}
+
+async function refreshBrowsers() {
+  if (process.platform !== 'win32') return;
+  installed = await browsers.detectBrowsers({ env: process.env, exists: fs.existsSync, appPath });
+  browsersKnown = true;
+}
+
+/** Trägt Host-Manifeste und Registry-Einträge für die automatische Kopplung ein (bei jedem Start, nur Änderungen). */
+async function setupNative() {
+  if (SMOKE || process.platform !== 'win32') return;
+  nativeErrors = await nativeSetup.install({
+    dir: path.join(app.getPath('userData'), 'native-host'), exe: process.execPath, script: HOST_SCRIPT, token: token(), port: PORT,
+  }).catch((err) => [err.code ?? err.message]);
+}
+
+/** Startet den Browser mit der Erweiterungsseite. Nur Browser aus der Liste, Adresse und Exe bestimmt die App selbst. */
+function openBrowserPage(id, target) {
+  const browser = installed.find((b) => b.id === id);
+  const url = browsers.pageUrl(id, target, nm.EXTENSION_ID);
+  if (!browser || !url) return { ok: false, message: 'Dieser Browser wurde nicht gefunden.' };
+  const child = spawn(browser.exe, [url], { detached: true, stdio: 'ignore' });
+  child.on('error', () => {});
+  child.unref();
+  return { ok: true };
 }
 
 // ---------- Zustand für die Oberfläche ----------
@@ -128,7 +170,15 @@ function viewModel() {
     },
     hints: HINTS,
     adultWords: store.adultWords,
-    extension: { families: ext.families, problems: ext.problems, port: PORT, serverError, dir: EXTENSION_DIR },
+    extension: {
+      families: ext.families, problems: ext.problems, port: PORT, serverError, dir: EXTENSION_DIR, id: nm.EXTENSION_ID, nativeErrors, browsersKnown,
+      // Ohne je verbundene Erweiterung öffnet sich die Oberfläche auf dem Reiter „Erweiterung“.
+      needsSetup: store.data.extension_connected !== true && Object.values(ext.families).every((f) => f.state !== 'ok'),
+      browsers: installed.map((b) => ({
+        id: b.id, label: b.label, ...browsers.browserStatus(b.id, { clients: tracker.clients, running, now: Date.now() }),
+        incognitoLabel: browsers.find(b.id).incognito, hasDetails: browsers.pageUrl(b.id, 'details', nm.EXTENSION_ID) !== null,
+      })),
+    },
     update: { available: update.available ? { version: update.available.version, notes: update.available.notes } : null, checking: update.checking, error: update.error, popup: Boolean(popup) },
     whatsNew,
     options: { THEMES, GLASS, ANIMATIONS },
@@ -147,6 +197,7 @@ function readChangelog() {
 
 function onHeartbeat(clientId, info, tabs) {
   const result = tracker.report(clientId, info, tabs);
+  if (store.data.extension_connected !== true) store.set('extension_connected', true); // ab jetzt öffnet sich das Fenster wieder auf „Heute“
   for (const e of result.events) {
     const label = APPS.find((a) => a.id === e.app)?.label ?? '';
     notify(label, e.type === 'warning' ? `Vorwarnung: ${minutesText(e.minutes)} bis zum Limit` : minutesText(e.minutes));
@@ -208,6 +259,7 @@ function refreshTray() {
   const ext = Object.values(vm.extension.families).map((f) => `${f.label}: ${{ ok: 'verbunden', missing: 'meldet sich nicht', idle: 'nicht gestartet', unknown: 'unbekannt' }[f.state]}`);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Öffnen', click: () => showWindow() },
+    { label: 'Erweiterung einrichten …', click: () => showWindow('erweiterung') },
     { type: 'separator' },
     { label: text.replace('Doomscroll Blocker: ', 'Heute: '), enabled: false },
     ...ext.map((label) => ({ label, enabled: false })),
@@ -222,7 +274,8 @@ function createTray() {
   refreshTray();
 }
 
-function showWindow() {
+/** tab: Reiter, auf den die Oberfläche springt (nur 'erweiterung'); ohne Angabe bleibt sie, wo sie ist. */
+function showWindow(tab) {
   if (!win || win.isDestroyed()) {
     win = new BrowserWindow({
       width: 520, height: 760, minWidth: 380, minHeight: 480, show: false, autoHideMenuBar: true,
@@ -245,6 +298,11 @@ function showWindow() {
   }
   win.show();
   win.focus();
+  if (tab === 'erweiterung') {
+    const send = () => win.webContents.send('open-tab', tab);
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+    else send();
+  }
 }
 
 function openChallengeInWindow(scope) {
@@ -345,6 +403,19 @@ handle('token:copy', () => {
   return true;
 });
 
+// Einrichtung der Erweiterung: die Oberfläche nennt nur den Browser (aus fester Liste) und die Art der Seite.
+handle('browser:open', (id, target) => (typeof id === 'string' && (target === 'extensions' || target === 'details') ? openBrowserPage(id, target) : { ok: false }));
+
+handle('extension:openFolder', async () => {
+  const error = await shell.openPath(EXTENSION_DIR); // leerer Text = geklappt
+  return error ? { ok: false, message: 'Der Ordner lässt sich nicht öffnen.' } : { ok: true };
+});
+
+handle('extension:copyPath', () => {
+  clipboard.writeText(EXTENSION_DIR);
+  return { ok: true };
+});
+
 handle('backup:export', async () => {
   const day = localDay(new Date());
   const res = await dialog.showSaveDialog(win, { title: 'Datensicherung speichern', defaultPath: `doomscroll-desktop-${day}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] });
@@ -426,6 +497,8 @@ function start() {
   Menu.setApplicationMenu(null);
   applyAutostart();
   createTray();
+  setupNative();
+  refreshBrowsers().catch(() => {});
   server.start({ token: token(), port: PORT, onHeartbeat })
     .then((s) => { httpServer = s; })
     .catch((err) => {
@@ -436,13 +509,15 @@ function start() {
     });
   refreshProcesses();
   setInterval(refreshProcesses, 30_000);
+  setInterval(() => refreshBrowsers().catch(() => {}), 60_000);
   setInterval(() => { refreshTray(); checkExtension(); }, 10_000);
   setInterval(() => checkUpdate(true), updater.CHECK_EVERY_MS);
   setTimeout(() => checkUpdate(true), 5_000);
   // Beim ersten Start oder ohne --hidden zeigt sich das Fenster, sonst bleibt die App im Tray.
   if (SMOKE) {
     require('./src/smoke').run({ app, getWin: () => { showWindow(); return win; }, tray, getServer: () => httpServer, token: token(), port: PORT, store });
-  } else if (firstRun || !process.argv.includes('--hidden')) showWindow();
+  } else if (firstRun) showWindow('erweiterung'); // erster Start nach der Installation: gleich zur Einrichtung
+  else if (!process.argv.includes('--hidden')) showWindow();
 }
 
 if (!app.requestSingleInstanceLock()) {

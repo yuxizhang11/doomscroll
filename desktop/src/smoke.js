@@ -88,6 +88,10 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     check('ipcGetState', vm && vm.version === '0.1.0' && vm.apps.length === 3);
     check('extensionProblemsShown', vm.extension.problems.some((p) => p.key === 'firefox:incognito'), vm.extension.problems);
     check('extensionDirHasManifest', fs.existsSync(path.join(vm.extension.dir, 'manifest.json')), vm.extension.dir);
+    // Einrichtung: Browser werden nur gelesen; ungültige Aufrufe starten nichts (echte Starts und die Zwischenablage bleiben ungetestet).
+    check('browsersDetected', Array.isArray(vm.extension.browsers) && vm.extension.browsers.every((b) => ['chrome', 'edge', 'brave', 'firefox'].includes(b.id)), vm.extension.browsers.map((b) => b.id));
+    check('extensionIdSet', /^[a-p]{32}$/.test(vm.extension.id));
+    check('openBrowserRejectsUnknown', (await js("window.doomscroll.openBrowser('cmd', 'extensions')")).ok === false && (await js("window.doomscroll.openBrowser('chrome', 'file:///C:/Windows/notepad.exe')")).ok === false);
     const ch = await js("window.doomscroll.newChallenge('QUIT')");
     check('quitChallengeIs20Chars', ch?.kind === 'code' && ch.text.length === 20);
     const wrong = await js("window.doomscroll.submitChallenge('QUIT', 'falsch')");

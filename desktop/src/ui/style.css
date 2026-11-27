@@ -274,3 +274,9 @@ html[data-motion="on"] progress::-webkit-progress-value { transition: width 600m
 .still .card, .still .top { animation: none !important; }
 
 main:focus-visible { outline: none; }
+
+/* Einrichtung der Erweiterung */
+code.path { display: block; margin: 8px 0; padding: 8px 12px; word-break: break-all; user-select: all; }
+details.manual > summary { display: flex; align-items: center; min-height: var(--hit); cursor: pointer; font-weight: 500; }
+details.manual > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+ol.steps .row-actions { margin-top: 8px; }
