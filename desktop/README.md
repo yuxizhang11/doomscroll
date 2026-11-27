@@ -22,7 +22,7 @@ npm install
 npm run dist
 ```
 
-Ergebnis: `desktop/dist/Doomscroll-Desktop-Setup-<version>.exe` (NSIS, Windows x64, Installation pro Benutzer, Zielordner wählbar) und der entpackte Stand `desktop/dist/win-unpacked/`. Die Erweiterung liegt im installierten Stand unter `resources/extension` (als `extraResources`, weil Browser nicht aus `asar` laden); der Reiter „Erweiterung“ zeigt diesen Pfad zum Laden an. Der Installer ist nicht signiert (kein Zertifikat), Windows SmartScreen warnt deshalb beim ersten Start. Selbsttest des gebauten Stands: `DOOMSCROLL_SMOKE_DIR=<ordner>` setzen und `dist/win-unpacked/"Doomscroll Desktop.exe" --smoke` starten.
+Ergebnis: `desktop/dist/Doomscroll-Desktop-Setup-<version>.exe` (NSIS, Windows x64, Installation pro Benutzer, Zielordner wählbar) und der entpackte Stand `desktop/dist/win-unpacked/`. Die Erweiterung liegt im installierten Stand unter `resources/extension` (als `extraResources`, weil Browser nicht aus `asar` laden); der Reiter „Erweiterung“ zeigt diesen Pfad zum Laden an. Es gibt eine Startmenü-, aber keine Desktop-Verknüpfung. Beim Deinstallieren entfernt `installer/installer.nsh` den Autostart-Eintrag (Name wie die AppUserModelID in `main.js`); die Daten in `%APPDATA%\doomscroll-desktop` bleiben bewusst erhalten, damit Deinstallieren und Neuinstallieren das Tageslimit nicht zurücksetzt. Eine laufende App beendet der Installer beim Update und Deinstallieren selbst. Der Installer ist nicht signiert (kein Zertifikat), Windows SmartScreen warnt deshalb beim ersten Start. Selbsttest des gebauten Stands: `DOOMSCROLL_SMOKE_DIR=<ordner>` setzen und `dist/win-unpacked/"Doomscroll Desktop.exe" --smoke` starten.
 
 ## Browser-Erweiterung
 

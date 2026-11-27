@@ -31,11 +31,11 @@ Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vor
 Installer (`cd desktop && npm run dist`, unsigniert):
 
 - [ ] `Doomscroll-Desktop-Setup-0.1.0.exe` startet (SmartScreen: „Weitere Informationen“, „Trotzdem ausführen“), lässt den Zielordner wählen und installiert ohne Administratorrechte.
-- [ ] Nach der Installation startet „Doomscroll Desktop“ mit Tray-Symbol und Fenster; Startmenü- und Desktop-Verknüpfung vorhanden.
+- [ ] Nach der Installation startet „Doomscroll Desktop“ mit Tray-Symbol und Fenster; Startmenü-Verknüpfung vorhanden (eine Desktop-Verknüpfung gibt es absichtlich nicht).
 - [ ] Autostart: In Windows (Task-Manager, Autostart-Apps) steht „Doomscroll Desktop“ mit dem Installationsordner, nicht mit dem Entwicklungsordner; nach Neustart startet die App ohne Fenster im Tray.
-- [ ] Reiter „Erweiterung“ zeigt einen Pfad unter dem Installationsordner (`…esourcesextension`); dieser Ordner lässt sich in Chrome, Edge und Brave als „Entpackte Erweiterung“ laden, `manifest.json` in Firefox als temporäres Add-on.
+- [ ] Reiter „Erweiterung“ zeigt einen Pfad unter dem Installationsordner (`…\resources\extension`); dieser Ordner lässt sich in Chrome, Edge und Brave als „Entpackte Erweiterung“ laden, `manifest.json` in Firefox als temporäres Add-on.
 - [ ] Installieren über eine ältere Fassung behält Limits und Verlauf.
-- [ ] Deinstallieren (Windows-Einstellungen, Apps) entfernt Programmordner und Verknüpfungen; der Autostart-Eintrag verschwindet ebenfalls (sonst melden).
+- [ ] Deinstallieren (Windows-Einstellungen, Apps) entfernt Programmordner und Verknüpfungen; der Autostart-Eintrag verschwindet ebenfalls (Task-Manager, Autostart-Apps). Limits und Verlauf bleiben in `%APPDATA%\doomscroll-desktop` erhalten, damit Deinstallieren das Limit nicht zurücksetzt.
 
 ## 1.28
 

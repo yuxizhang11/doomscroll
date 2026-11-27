@@ -2,6 +2,7 @@
   "name": "doomscroll-desktop",
   "version": "0.1.0",
   "description": "Doomscroll Blocker für Windows: Tray-App mit Tageslimit für Instagram Reels, YouTube Shorts und TikTok im Browser.",
+  "author": "Yüxi Zhang",
   "main": "main.js",
   "private": true,
   "type": "commonjs",
@@ -48,7 +49,10 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "Doomscroll-Desktop-Setup-${version}.exe"
+      "artifactName": "Doomscroll-Desktop-Setup-${version}.exe",
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "include": "installer/installer.nsh"
     }
   }
 }
