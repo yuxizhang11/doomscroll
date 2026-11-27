@@ -9,6 +9,7 @@ const MAX = 600;
 
 let state = null;
 let tab = 'heute';
+let stage = 'compact'; // 'compact' = kleines Panel am Tray, 'full' = aufgeklappt mit allen Reitern (entscheidet main.js)
 let draft = null; // Limit-Einstellungen, die noch nicht gespeichert sind
 let toastTimer = null;
 let lastTodayKey = '';
@@ -45,8 +46,8 @@ function card(title, ...content) {
   return h('section', { class: 'card' }, title ? h('h2', null, title) : null, content);
 }
 
-function sw(checked, onchange, label) {
-  return h('span', { class: 'switch' }, h('input', { type: 'checkbox', role: 'switch', 'aria-label': label, checked, onchange: (e) => onchange(e.target.checked, e.target) }), h('span', { class: 'track' }));
+function sw(checked, onchange, label, k) {
+  return h('span', { class: 'switch' }, h('input', { type: 'checkbox', role: 'switch', 'aria-label': label, 'data-k': k, checked, onchange: (e) => onchange(e.target.checked, e.target) }), h('span', { class: 'track' }));
 }
 
 function stepper(value, set, { label, unit = 'min', min = 0, max = MAX, step = MIN, zeroText }) {
@@ -79,11 +80,21 @@ function applyPrefs() {
 
 // ---------- Zustand holen ----------
 
+/** Übernimmt die Stufe des Panels; true, wenn sie sich geändert hat (dann ist neu zu zeichnen). */
+function syncStage(next) {
+  if (next !== 'compact' && next !== 'full') return false;
+  root.dataset.stage = next;
+  if (next === stage) return false;
+  stage = next;
+  return true;
+}
+
 async function refresh(full = true) {
   state = await api.getState();
+  const changed = syncStage(state.stage);
   applyPrefs();
   renderHeader();
-  if (full) render();
+  if (full || changed) render();
 }
 
 function renderHeader() {
@@ -100,9 +111,11 @@ function render(still = false) {
     else b.removeAttribute('aria-current');
   }
   const pages = { heute: pageToday, limits: pageLimits, erweiterung: pageExtension, mehr: pageMore };
-  const nodes = pages[tab]();
+  const nodes = stage === 'compact' ? pageFlyout() : pages[tab]();
   nodes.forEach((n, i) => n.style.setProperty('--i', String(i)));
+  const focused = view.contains(document.activeElement) ? document.activeElement.dataset?.k : null; // Fokus übersteht das Neuzeichnen
   view.replaceChildren(...nodes);
+  if (focused) view.querySelector(`[data-k="${focused}"]`)?.focus({ preventScroll: true });
 }
 
 // ---------- Heute ----------
@@ -127,7 +140,8 @@ function problemBanner() {
     h('button', { type: 'button', class: 'btn', onclick: () => { tab = 'erweiterung'; render(); } }, 'Zur Erweiterung'));
 }
 
-function pageToday() {
+/** Überschrift und Satz zum Stand des Tages (große Zeile in „Heute“ und im Panel). */
+function todaySummary() {
   const t = state.total;
   const left = Math.max(0, t.limitMin - t.usedMin);
   let big;
@@ -148,15 +162,25 @@ function pageToday() {
     big = `Noch ${left} min`;
     sub = `${t.usedMin} von ${t.limitMin} min heute genutzt.`;
   }
-  const hero = h('section', { class: 'card hero' }, h('div', { class: 'big' }, big), h('p', { class: 'muted' }, sub));
+  return { big, sub };
+}
 
-  const rows = state.apps.filter((a) => a.enabled).map((a) => {
+/** Verbrauch je eingeschalteter App mit Balken. */
+function usageRows() {
+  const t = state.total;
+  return state.apps.filter((a) => a.enabled).map((a) => {
     const limit = a.limitMin ?? t.limitMin;
     const used = a.usedMin;
     const right = a.unlocked || t.unlockedAll ? `${a.usedMin} min · frei` : a.limitMin == null ? `${a.usedMin} min` : `${a.usedMin} / ${a.limitMin} min`;
     const bar = h('progress', { max: String(Math.max(1, limit)), value: String(a.unlocked || t.unlockedAll ? 0 : Math.min(used, limit)), 'aria-label': `${a.label}: ${right}`, class: used >= limit && !(a.unlocked || t.unlockedAll) ? 'full' : '' });
     return h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'row', style: 'min-height:0' }, h('span', null, a.label), h('span', { class: 'muted' }, right)), bar));
   });
+}
+
+function pageToday() {
+  const { big, sub } = todaySummary();
+  const hero = h('section', { class: 'card hero' }, h('div', { class: 'big' }, big), h('p', { class: 'muted' }, sub));
+  const rows = usageRows();
   const usage = card('Heute', rows.length ? rows : h('p', { class: 'muted' }, 'Alle Apps sind ausgeschaltet. Unter „Limits“ einschalten.'));
 
   const max = Math.max(1, ...state.week.map((d) => d.minutes));
@@ -334,6 +358,70 @@ async function setPref(key, value) {
   return res;
 }
 
+/** Einschalten gilt sofort, Ausschalten nur mit den 20 abgetippten Zeichen (der Schalter bleibt bis dahin an). */
+function autostartSwitch(k) {
+  return sw(state.prefs.autostart, async (on, el) => { if (on) await setPref('autostart', true); else { el.checked = true; openChallenge('AUTOSTART'); } }, 'Mit Windows starten', k);
+}
+
+// ---------- Panel am Tray ----------
+
+/** Zustand der Erweiterung in zwei kurzen Angaben: [Text, Farbe] für „Erweiterung“ und „Private Fenster“. */
+function extensionBadges() {
+  const ex = state.extension;
+  const fams = Object.values(ex.families);
+  const ok = fams.filter((f) => f.state === 'ok');
+  const missing = fams.some((f) => f.state === 'missing');
+  const link = ok.length > 0 && !missing ? ['verbunden', 'ok'] : missing ? ['fehlt', 'bad'] : ex.needsSetup ? ['nicht eingerichtet', 'bad'] : ['Browser aus', 'idle'];
+  const incognito = ok.length === 0 ? ['unbekannt', 'idle']
+    : ok.some((f) => f.incognito === 'denied') ? ['nicht geschützt', 'bad']
+    : ok.every((f) => f.incognito === 'ok') ? ['geschützt', 'ok'] : ['unbekannt', 'idle'];
+  return { link, incognito };
+}
+
+function pageFlyout() {
+  const t = state.total;
+  const { big, sub } = todaySummary();
+  const rows = usageRows();
+  const total = !t.perApp && !t.unlockedAll
+    ? h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'row', style: 'min-height:0' }, h('span', null, 'Gesamt'), h('span', { class: 'muted' }, `${t.usedMin} / ${t.limitMin} min`)),
+      h('progress', { max: String(Math.max(1, t.limitMin)), value: String(Math.min(t.usedMin, t.limitMin)), 'aria-label': `Gesamt: ${t.usedMin} von ${t.limitMin} Minuten`, class: t.usedMin >= t.limitMin ? 'full' : '' })))
+    : null;
+  const showSub = total === null || t.usedMin >= t.limitMin; // sonst steht dieselbe Zahl schon in der Zeile „Gesamt“
+  const today = card('Heute',
+    h('div', { class: 'big' }, big), showSub ? h('p', { class: 'muted' }, sub) : null, total,
+    rows.length ? rows : h('p', { class: 'muted' }, 'Alle Apps sind ausgeschaltet. Unter „Limits“ einschalten.'));
+  today.classList.add('hero');
+
+  const b = extensionBadges();
+  const badge = ([text, cls]) => h('span', { class: `badge ${cls}` }, text);
+  const status = card('Status',
+    h('div', { class: 'row' }, h('span', { class: 'grow' }, 'Erweiterung'), badge(b.link)),
+    h('div', { class: 'row' }, h('span', { class: 'grow' }, 'Private Fenster'), badge(b.incognito)),
+    state.extension.serverError ? h('p', { class: 'error' }, state.extension.serverError) : null);
+
+  const p = state.prefs;
+  const notices = ['hint_remaining', 'hint_warning', 'hint_extension'];
+  const switches = card('Schnell',
+    h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', null, 'Meldungen'), h('div', { class: 'muted small' }, 'Restzeit, Vorwarnung, Erweiterung fehlt')),
+      sw(notices.some((k) => p.hints[k]), async (on) => { for (const k of notices) await setPref(k, on); }, 'Meldungen', 'notices')),
+    h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', null, 'Mit Windows starten'), h('div', { class: 'muted small' }, 'Ausschalten braucht 20 Zeichen')), autostartSwitch('autostart')),
+    h('div', { class: 'flyout-actions' },
+      t.unlockedAll ? null : h('button', { type: 'button', class: 'btn', 'data-k': 'unlock', onclick: () => openChallenge('ALL') }, 'Sperre aufheben …'),
+      h('button', { type: 'button', class: 'btn', 'data-k': 'setup', onclick: () => { tab = 'erweiterung'; expand(); } }, 'Erweiterung einrichten')));
+
+  return [status, today, switches];
+}
+
+async function expand() {
+  await api.panelExpand();
+  document.getElementById('panel-less').focus({ preventScroll: true });
+}
+
+async function collapse() {
+  await api.panelCollapse();
+  document.getElementById('panel-more').focus({ preventScroll: true });
+}
+
 function pageMore() {
   const p = state.prefs;
   const look = card('Darstellung',
@@ -365,7 +453,7 @@ function pageMore() {
 
   const autostart = card('Start mit Windows',
     h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', null, 'Mit Windows starten'), h('div', { class: 'muted small' }, 'Im Tray, ohne Fenster. Ausschalten braucht 20 abgetippte Zeichen.')),
-      sw(p.autostart, async (on, el) => { if (on) await setPref('autostart', true); else { el.checked = true; openChallenge('AUTOSTART'); } }, 'Mit Windows starten')));
+      autostartSwitch()));
 
   const backupMsg = h('p', { class: 'muted', role: 'status' });
   const backup = card('Datensicherung',
@@ -495,6 +583,18 @@ function maybePopups() {
 for (const b of document.querySelectorAll('.tabs button')) {
   b.addEventListener('click', () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); view.focus({ preventScroll: true }); });
 }
+document.getElementById('panel-more').addEventListener('click', () => { tab = 'heute'; expand(); });
+document.getElementById('panel-less').addEventListener('click', collapse);
+document.getElementById('panel-close').addEventListener('click', () => api.panelClose());
+// Esc schließt das Panel, außer ein Dialog oder eine Auswahlliste hat es gerade selbst belegt.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('dialog[open]') || document.activeElement?.tagName === 'SELECT') return;
+  api.panelClose();
+});
+api.onPanelStage((next) => {
+  if (!syncStage(next)) return;
+  if (state) { render(); window.scrollTo(0, 0); }
+});
 api.onOpenChallenge((scope) => openChallenge(scope));
 api.onOpenTab((name) => { // kann vor dem ersten Zustand ankommen: dann zeichnet der Start den Reiter
   if (name !== 'erweiterung') return;
@@ -511,14 +611,15 @@ setInterval(async () => {
   } catch {
     return;
   }
+  if (syncStage(state.stage)) render();
   applyPrefs();
   renderHeader();
-  const key = JSON.stringify([state.total, state.apps, state.week, state.quietNow, state.extension, state.activeApp]);
-  if (tab === 'heute' && !chDialog.open && key !== lastTodayKey) {
+  const key = JSON.stringify([state.total, state.apps, state.week, state.quietNow, state.extension, state.activeApp, state.prefs]);
+  if ((stage === 'compact' || tab === 'heute') && !chDialog.open && key !== lastTodayKey) {
     lastTodayKey = key;
     render(true);
   }
-  if (tab === 'erweiterung') {
+  if (stage === 'full' && tab === 'erweiterung') {
     // Wurden Browser gerade erst erkannt, wird die Seite neu gebaut (sie hat keine Eingaben); sonst nur der Status.
     const ids = state.extension.browsersKnown + state.extension.browsers.map((b) => b.id).join();
     if (ids !== shownBrowsers) render(true);
@@ -529,7 +630,7 @@ setInterval(async () => {
 
 // Fenster ohne verbundene Erweiterung (erster Start, später über den Tray geöffnet) beginnt bei der Einrichtung.
 refresh(false).then(() => {
-  if (state.extension.needsSetup) tab = 'erweiterung';
+  if (state.extension.needsSetup) tab = 'erweiterung'; // gilt für die aufgeklappte Ansicht; das Panel zeigt den Zustand im Kasten „Status“
   render();
   maybePopups();
 });

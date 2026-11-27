@@ -11,8 +11,15 @@
   <div class="backdrop" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="shade"></div></div>
   <div class="app">
     <header class="top">
-      <h1>Doomscroll Blocker</h1>
-      <p id="subtitle" class="muted"></p>
+      <img class="logo" src="../../assets/logo.svg" alt="" width="40" height="40">
+      <div class="titles">
+        <h1>Doomscroll Blocker</h1>
+        <p id="subtitle" class="muted"></p>
+      </div>
+      <div class="win-actions">
+        <button type="button" class="btn" id="panel-less" aria-label="Weniger: Panel wieder klein machen">Weniger <i class="chev down" aria-hidden="true"></i></button>
+        <button type="button" class="btn icon" id="panel-close" aria-label="Schließen (Esc)" title="Schließen (Esc)">✕</button>
+      </div>
     </header>
     <main id="view" tabindex="-1"></main>
     <nav class="tabs" aria-label="Bereiche">
@@ -21,6 +28,9 @@
       <button type="button" data-tab="erweiterung">Erweiterung</button>
       <button type="button" data-tab="mehr">Mehr</button>
     </nav>
+    <div class="foot">
+      <button type="button" class="btn primary block" id="panel-more" aria-label="Mehr: alle Einstellungen aufklappen">Mehr <i class="chev up" aria-hidden="true"></i></button>
+    </div>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

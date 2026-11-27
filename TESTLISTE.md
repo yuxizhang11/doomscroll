@@ -12,8 +12,12 @@ Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vor
 - [ ] Windows sperren (Win+L), nach einer Minute entsperren: die Minute fehlt in Heute. Dasselbe mit Standby/Ruhezustand.
 - [ ] Limit erreicht, Browserfenster ohne Fokus: Der Tab ist trotzdem gesperrt, sobald er sichtbar ist.
 - [ ] Dasselbe in einem privaten Fenster: Die Sperrseite erscheint dort ebenfalls.
-- [ ] Tray-Symbol erscheint, Klick öffnet das Fenster, Schließen lässt die App im Tray.
-- [ ] Frische Installation, erster Start: Das Fenster öffnet sich gleich auf dem Reiter „Erweiterung“ und erkennt die installierten Browser. Mit `--hidden` (Autostart) öffnet sich nichts.
+- [ ] Tray-Symbol zeigt das Logo der Handy-App (rotes Quadrat, Handy mit Balken) und ist bei 100 %, 150 % und 200 % Skalierung gut erkennbar; dasselbe Logo in Taskleiste, Fenster, Installer, Erweiterungsseite des Browsers und auf der Sperrseite (Tab-Symbol und Kopf).
+- [ ] Linksklick auf das Tray-Symbol öffnet ein kleines Panel direkt am Symbol (Taskleiste unten, oben, links und rechts; auch auf einem zweiten Monitor und bei Symbol im Überlauf-Menü), nie außerhalb des Bildschirms. Zweiter Klick auf das Symbol schließt es und öffnet es nicht gleich wieder. Klick daneben und Esc schließen es.
+- [ ] Im Panel stehen Status (Erweiterung, Private Fenster), Verbrauch je App mit Gesamtlimit und die Schnellschalter. „Meldungen“ aus und an wirkt, „Mit Windows starten“ aus verlangt die 20 Zeichen, „Sperre aufheben …“ verlangt den Satz, „Erweiterung einrichten“ klappt auf den Reiter „Erweiterung“ auf.
+- [ ] „Mehr“ klappt das Panel zu den vollen Reitern auf (wächst von der Taskleiste weg, bleibt im Bild), „Weniger“ klappt es wieder ein. Mit Animationen „Aus“ und mit „Animationen aus“ in Windows springt es ohne Übergang. Das aufgeklappte Fenster bleibt beim Klick daneben offen, ✕ und Esc schließen es, die Kopfleiste zieht es.
+- [ ] Rechtsklick auf das Symbol zeigt das Menü („Öffnen“ klappt das Fenster auf, „Beenden …“ verlangt 20 Zeichen). Tastatur: Tab erreicht alle Knöpfe und Schalter im Panel mit sichtbarem Fokus, nach „Mehr“ steht der Fokus auf „Weniger“ und umgekehrt. Glas „Aus“, „Einfach“, „Voll“ und Schriftgröße „Riesig“: Panel lesbar (es scrollt).
+- [ ] Frische Installation, erster Start: Das aufgeklappte Fenster öffnet sich gleich auf dem Reiter „Erweiterung“ und erkennt die installierten Browser. Mit `--hidden` (Autostart) öffnet sich nichts.
 - [ ] „<Browser> öffnen und Erweiterungsseite zeigen“ öffnet in Chrome, Edge, Brave und Firefox die richtige Seite (`chrome://extensions`, `edge://extensions`, `brave://extensions`, `about:debugging`).
 - [ ] „Ordner öffnen“ zeigt im Explorer den Ordner `resources\extension` der installierten App (mit `manifest.json`), „Pfad kopieren“ legt genau diesen Pfad in die Zwischenablage.
 - [ ] Erweiterung in Chrome, Edge oder Brave als entpackte Erweiterung laden (Ordner aus der App): Ohne einen Code zu kopieren zeigt der Reiter „Erweiterung verbunden“ (Kopplung per Native Messaging, nach spätestens etwa 30 Sekunden).
@@ -21,7 +25,7 @@ Auf einem echten Windows-PC mit `cd desktop && npm start`; `npm test` läuft vor
 - [ ] Update von der Fassung ohne feste Erweiterungs-ID: Die Erweiterung bekommt durch `key` eine neue ID. Prüfen, ob eine schon geladene Erweiterung weiterläuft oder entfernt und neu geladen werden muss, und ob der Status danach „verbunden“ zeigt (Code und die Erlaubnis für private Fenster gehen mit der alten ID verloren).
 - [ ] Dasselbe in Firefox (temporäres Add-on, `manifest.json` im Ordner wählen). Nach einem Neustart von Firefox ist das Add-on weg, der Reiter zeigt „Erweiterung fehlt“ und erklärt das.
 - [ ] Reiter „Erweiterung“, „Kopplung von Hand“: Code kopieren und in den Optionen der Erweiterung einfügen funktioniert weiter (zum Beispiel nach Entfernen von `HKCU\Software\Google\Chrome\NativeMessagingHosts\de.doomscroll.desktop`).
-- [ ] Tray-Menü „Erweiterung einrichten …“ öffnet das Fenster auf dem Reiter „Erweiterung“.
+- [ ] Tray-Menü „Erweiterung einrichten …“ öffnet das aufgeklappte Fenster auf dem Reiter „Erweiterung“.
 - [ ] Update über die alte Version installieren (Setup): Die Einträge unter `NativeMessagingHosts\de.doomscroll.desktop` bleiben, nach dem Start zeigen sie auf die neue Exe. Deinstallieren entfernt sie wieder (Chrome, Edge, Brave, Chromium, Firefox), andere Einträge unter denselben Schlüsseln bleiben.
 - [ ] instagram.com/reels, youtube.com/shorts und tiktok.com zählen die Zeit; Feed, normale YouTube-Videos und Suche zählen nicht.
 - [ ] Limit auf 1 Minute: nach Ablauf erscheint „Genug für heute!“ im Tab, „Zur Startseite“ führt auf die normale Seite.

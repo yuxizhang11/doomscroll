@@ -63,6 +63,9 @@ test('Sperrseite: feste Texte ohne Token, nichts aus der Adresse wird eingesetzt
   assert.match(limit.text, /Genug für heute!/);
   assert.match(limit.text, /https:\/\/www\.instagram\.com\//);
   assert.match(limit.headers['content-security-policy'], /default-src 'none'/);
+  assert.match(limit.headers['content-security-policy'], /img-src data:/);
+  assert.match(limit.text, /<link rel="icon" href="data:image\/svg\+xml;base64,/, 'Logo der App als Favicon');
+  assert.match(limit.text, /<img src="data:image\/svg\+xml;base64,[^"]+" alt="">/, 'Logo in der Seite, ohne Vorlesetext');
   assert.match((await get('/blocked?kind=porn')).text, /Diese Seite ist gesperrt/);
   assert.match((await get('/blocked?kind=quiet&app=TIKTOK')).text, /Ruhezeit/);
   const evil = await get('/blocked?kind=%3Cscript%3Ealert(1)%3C%2Fscript%3E&app=%22%3E%3Cimg%20src%3Dx%3E');

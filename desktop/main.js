@@ -1,8 +1,8 @@
 'use strict';
 // Doomscroll Blocker für Windows: sitzt im Tray, zählt über die Browser-Erweiterung und sperrt bei Limit.
-// Fenster nur auf Klick; „Beenden“ im Tray braucht die 20 Zeichen.
+// Klick auf das Tray-Symbol öffnet ein kleines Panel, „Mehr“ klappt es zu den vollen Reitern auf; „Beenden“ im Tray braucht die 20 Zeichen.
 
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, dialog, shell, clipboard, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, dialog, shell, clipboard, nativeImage, powerMonitor, screen, systemPreferences } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
@@ -25,6 +25,7 @@ const { parseChangelog, isTrustedDownload } = require('./src/core/version');
 const { evaluate } = require('./src/core/extension-status');
 const nm = require('./src/core/native-messaging');
 const browsers = require('./src/core/browsers');
+const flyout = require('./src/core/flyout');
 const nativeSetup = require('./src/native-setup');
 const persist = require('./src/persist');
 const server = require('./src/server');
@@ -48,6 +49,9 @@ let tracker;
 let saver;
 let tray = null;
 let win = null;
+let stage = 'compact'; // Panel: 'compact' (kleines Flyout am Tray) oder 'full' (aufgeklappt, alle Reiter)
+let hiddenAt = null; // wann das Panel zuletzt verschwand (siehe flyout.ignoreTrayClick)
+let resizing = null; // laufende Aufklapp-Animation
 let httpServer = null;
 let allowQuit = false;
 let serverError = null;
@@ -151,6 +155,7 @@ function viewModel() {
   const popup = update.available && store.isOn('hint_update_popup') && update.offered !== update.available.version;
   return {
     version: VERSION,
+    stage,
     apps: APPS.map((a) => ({
       id: a.id,
       label: a.label,
@@ -259,7 +264,7 @@ function refreshTray() {
   const ext = Object.values(vm.extension.families).map((f) => `${f.label}: ${{ ok: 'verbunden', missing: 'meldet sich nicht', idle: 'nicht gestartet', unknown: 'unbekannt' }[f.state]}`);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Öffnen', click: () => showWindow() },
-    { label: 'Erweiterung einrichten …', click: () => showWindow('erweiterung') },
+    { label: 'Erweiterung einrichten …', click: () => showWindow('full', 'erweiterung') },
     { type: 'separator' },
     { label: text.replace('Doomscroll Blocker: ', 'Heute: '), enabled: false },
     ...ext.map((label) => ({ label, enabled: false })),
@@ -269,18 +274,71 @@ function refreshTray() {
 }
 
 function createTray() {
+  // tray.png (16 px) mit @1.25x bis @2x daneben: Windows nimmt je nach Skalierung die passende Datei.
   tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray.png')));
-  tray.on('click', () => (win && win.isVisible() ? win.hide() : showWindow()));
+  tray.on('click', () => {
+    if (win && !win.isDestroyed() && win.isVisible()) return win.hide();
+    if (flyout.ignoreTrayClick(hiddenAt, Date.now())) return; // dieser Klick hat das Panel gerade erst durch den Fokusverlust geschlossen
+    showWindow('compact');
+  });
   refreshTray();
 }
 
-/** tab: Reiter, auf den die Oberfläche springt (nur 'erweiterung'); ohne Angabe bleibt sie, wo sie ist. */
-function showWindow(tab) {
+/** Zielrechteck des Panels: am Tray-Symbol; im Selbsttest bleibt es außerhalb des Bildschirms. */
+function panelBounds(size) {
+  if (SMOKE) return { x: -5000, y: 100, ...size };
+  const t = tray && !tray.isDestroyed() ? tray.getBounds() : null;
+  const usable = t && t.width > 0 && t.height > 0;
+  const display = usable ? screen.getDisplayNearestPoint({ x: Math.round(t.x + t.width / 2), y: Math.round(t.y + t.height / 2) }) : screen.getPrimaryDisplay();
+  return flyout.position({ tray: t, display, size });
+}
+
+/** „Reduzierte Bewegung“ in Windows und die eigene Einstellung gelten wie in der Oberfläche (app.js, applyPrefs). */
+function animationsOn() {
+  if (store.animations === 'aus') return false;
+  if (store.animations === 'an') return true;
+  try {
+    return !systemPreferences.getAnimationSettings().prefersReducedMotion;
+  } catch {
+    return true;
+  }
+}
+
+function setBoundsNow(rect) {
+  if (win && !win.isDestroyed()) win.setBounds(rect);
+}
+
+/** Wechselt zwischen kleinem Panel und aufgeklapptem Fenster; das Fenster wächst von der Taskleiste weg (kurz, abschaltbar). */
+function setStage(next, animate) {
+  if (!win || win.isDestroyed()) return;
+  stage = next;
+  clearInterval(resizing);
+  resizing = null;
+  win.setSkipTaskbar(SMOKE || next === 'compact');
+  win.webContents.send('panel-stage', next);
+  const target = panelBounds(flyout.SIZES[next]);
+  if (!animate || !animationsOn() || !win.isVisible()) return setBoundsNow(target);
+  const from = win.getBounds();
+  const began = Date.now();
+  const DURATION = 220;
+  resizing = setInterval(() => {
+    const t = Math.min(1, (Date.now() - began) / DURATION);
+    setBoundsNow(t >= 1 ? target : flyout.lerpBounds(from, target, flyout.easeOut(t)));
+    if (t >= 1) {
+      clearInterval(resizing);
+      resizing = null;
+    }
+  }, 16);
+}
+
+/** next: 'compact' (Klick auf das Symbol) oder 'full' (Menü, erster Start); tab: Reiter, auf den die Oberfläche springt (nur 'erweiterung'). */
+function showWindow(next = 'full', tab) {
   if (!win || win.isDestroyed()) {
     win = new BrowserWindow({
-      width: 520, height: 760, minWidth: 380, minHeight: 480, show: false, autoHideMenuBar: true,
-      ...(SMOKE ? { x: -5000, y: 100, skipTaskbar: true, focusable: false } : {}),
-      title: 'Doomscroll Blocker', icon: path.join(__dirname, 'assets', 'icon.png'), backgroundColor: '#0b1220',
+      // thickFrame aus: sonst vergrößert setBounds bei rahmenlosen Fenstern die Zeichenfläche um den unsichtbaren Rand (16 x 8 px mehr als angefragt).
+      ...flyout.SIZES.compact, show: false, frame: false, thickFrame: false, resizable: false, autoHideMenuBar: true, skipTaskbar: true,
+      ...(SMOKE ? { x: -5000, y: 100, focusable: false } : {}),
+      title: 'Doomscroll Blocker', icon: path.join(__dirname, 'assets', 'icon.ico'), backgroundColor: '#0b1220',
       webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: !SMOKE },
     });
     win.setMenu(null);
@@ -292,10 +350,15 @@ function showWindow(tab) {
         win.hide();
       }
     });
+    win.on('hide', () => { hiddenAt = Date.now(); });
+    // Das kleine Panel schließt bei Fokusverlust; das aufgeklappte Fenster bleibt (Dateidialoge, Browserwechsel).
+    win.on('blur', () => { if (stage === 'compact' && !SMOKE) win.hide(); });
     // Windows fährt herunter: das Fenster darf das Herunterfahren nicht aufhalten.
     win.on('session-end', () => { allowQuit = true; });
     win.loadFile(INDEX);
   }
+  const wasVisible = win.isVisible();
+  if (!wasVisible || stage !== next) setStage(next, wasVisible);
   win.show();
   win.focus();
   if (tab === 'erweiterung') {
@@ -333,6 +396,11 @@ function applyPending(next) {
 }
 
 handle('state:get', () => viewModel());
+
+// Panel: klein am Tray oder aufgeklappt mit allen Reitern.
+handle('panel:expand', () => { setStage('full', true); return true; });
+handle('panel:collapse', () => { setStage('compact', true); return true; });
+handle('panel:close', () => { win?.hide(); return true; });
 
 handle('challenge:new', (scope) => {
   const ch = unlock.newChallenge(scope);
@@ -515,8 +583,8 @@ function start() {
   setTimeout(() => checkUpdate(true), 5_000);
   // Beim ersten Start oder ohne --hidden zeigt sich das Fenster, sonst bleibt die App im Tray.
   if (SMOKE) {
-    require('./src/smoke').run({ app, getWin: () => { showWindow(); return win; }, tray, getServer: () => httpServer, token: token(), port: PORT, store });
-  } else if (firstRun) showWindow('erweiterung'); // erster Start nach der Installation: gleich zur Einrichtung
+    require('./src/smoke').run({ app, getWin: (next, tab) => { showWindow(next, tab); return win; }, tray, getServer: () => httpServer, token: token(), port: PORT, store });
+  } else if (firstRun) showWindow('full', 'erweiterung'); // erster Start nach der Installation: gleich zur Einrichtung
   else if (!process.argv.includes('--hidden')) showWindow();
 }
 

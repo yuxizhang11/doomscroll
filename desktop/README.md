@@ -10,9 +10,19 @@ npm install
 npm start
 ```
 
-Beim ersten Start zeigt sich das Fenster gleich auf dem Reiter „Erweiterung“ (geführte Einrichtung), danach sitzt die App im Tray (Klick öffnet das Fenster; solange sich noch nie eine Erweiterung verbunden hat, beginnt es wieder dort, und im Tray-Menü gibt es „Erweiterung einrichten …“). Der Start mit Windows ist standardmäßig an (`--hidden`, also ohne Fenster); Ausschalten braucht 20 abgetippte Zeichen. Achtung: Mit `npm start` trägt sich der Autostart auf den Entwicklungsordner ein; die installierte Fassung (siehe „Installer bauen“) trägt ihre eigene Exe ein.
+Beim ersten Start zeigt sich das aufgeklappte Fenster gleich auf dem Reiter „Erweiterung“ (geführte Einrichtung), danach sitzt die App im Tray (Klick öffnet das kleine Panel, siehe „Panel am Tray“; solange sich noch nie eine Erweiterung verbunden hat, beginnt das aufgeklappte Fenster wieder bei der Einrichtung, und im Tray-Menü gibt es „Erweiterung einrichten …“). Der Start mit Windows ist standardmäßig an (`--hidden`, also ohne Fenster); Ausschalten braucht 20 abgetippte Zeichen. Achtung: Mit `npm start` trägt sich der Autostart auf den Entwicklungsordner ein; die installierte Fassung (siehe „Installer bauen“) trägt ihre eigene Exe ein.
 
 Zum Beenden: Tray-Menü „Beenden …“ oder Reiter „Mehr“, dann 20 Zeichen abtippen. Das Fenster schließen lässt die App im Tray weiterlaufen.
+
+## Panel am Tray
+
+Ein Linksklick auf das Tray-Symbol öffnet ein kleines Panel (360 × 480 px, rahmenlos) direkt am Symbol; ein zweiter Klick schließt es wieder.
+
+- Inhalt: Kopfzeile mit Logo, Status („Erweiterung“: verbunden, fehlt, nicht eingerichtet, Browser aus; „Private Fenster“: geschützt, nicht geschützt, unbekannt), Verbrauch heute je App mit dem Gesamtlimit, Schnellschalter und „Mehr“. Die Schalter: „Meldungen“ (schaltet Restzeit, Vorwarnung und „Erweiterung fehlt“ zusammen; einzeln unter „Mehr“, „Hinweise“), „Mit Windows starten“ (Einschalten sofort, Ausschalten nur mit den 20 abgetippten Zeichen), dazu „Sperre aufheben …“ (Satz abtippen) und „Erweiterung einrichten“.
+- „Mehr“ klappt dasselbe Fenster zu den vollen Reitern (Heute, Limits, Erweiterung, Mehr) auf, es wächst von der Taskleiste weg (520 × 760 px, kleiner, wenn der Bildschirm es nicht hergibt). „Weniger“ klappt wieder ein. Die Animation folgt der Einstellung „Animationen“ (Reiter „Mehr“); steht sie auf „Wie Windows“, entfällt sie bei „reduzierter Bewegung“ in Windows.
+- Das kleine Panel schließt bei Fokusverlust und mit Esc; das aufgeklappte Fenster bleibt offen, bis man es mit ✕ oder Esc schließt (es hat keinen Systemrahmen, die Kopfleiste zieht es). Das Fenster lässt sich nicht in der Größe ziehen. `thickFrame` ist aus, weil `setBounds` sonst bei rahmenlosen Fenstern die Zeichenfläche um den unsichtbaren Rand vergrößert; dafür fehlen Systemschatten und -rand, ein feiner eigener Rand ersetzt ihn.
+- Rechtsklick zeigt das Menü: „Öffnen“ (aufgeklapptes Fenster), „Erweiterung einrichten …“, „Beenden …“. Ein zweiter Start der App und der erste Start nach der Installation öffnen ebenfalls das aufgeklappte Fenster.
+- Position: `src/core/flyout.js` (reine Funktionen, getestet in `test/flyout.test.js`) rechnet aus `tray.getBounds()` und dem Bildschirm (Arbeitsbereich) die Lage aus. Die Taskleiste wird daran erkannt, dass der Arbeitsbereich kleiner ist als der Bildschirm (unten, oben, links, rechts); bei ausgeblendeter Taskleiste zählt der nächste Bildschirmrand. Das Panel ist auf das Symbol zentriert, bleibt 8 px vom Rand weg und im Arbeitsbereich. Ist die Tray-Position unbrauchbar (Symbol im Überlauf), sitzt es unten rechts. Ein Tray-Klick, der das Panel gerade durch den Fokusverlust geschlossen hat, öffnet es nicht gleich wieder.
 
 ## Installer bauen
 
@@ -78,8 +88,9 @@ Grenze: Ein anderes Programm, das den Code kennt oder die Datendatei lesen darf,
 
 ## Aufbau
 
-- `main.js`: Tray, Fenster, lokaler Server, Hintergrundprüfungen, Update-Suche, Start der Browser (nur aus fester Liste). `preload.js`: schmale Brücke zur Oberfläche.
-- `src/core/`: reine Logik ohne Electron (`tracker`, `store`, `adult-filter`, `targets`, `unlock`, `backup`, `version`, `extension-status`, `browsers` für Erkennung und Status, `native-messaging` für Manifeste, Registry-Schlüssel und IDs).
+- `main.js`: Tray, Panel (klein und aufgeklappt), lokaler Server, Hintergrundprüfungen, Update-Suche, Start der Browser (nur aus fester Liste). `preload.js`: schmale Brücke zur Oberfläche.
+- `src/core/`: reine Logik ohne Electron (`tracker`, `store`, `adult-filter`, `targets`, `unlock`, `backup`, `version`, `extension-status`, `browsers` für Erkennung und Status, `native-messaging` für Manifeste, Registry-Schlüssel und IDs, `flyout` für Lage und Größe des Panels).
+- `assets/`: Logo der Handy-App (`logo.svg`, Quelle) und daraus erzeugt `icon.ico` (16 bis 256 px, für Exe und Installer), `icon.png`, `tray*.png` (16 px, dazu `@1.25x` bis `@2x`). `tools/make-icons.js` erzeugt sie samt `extension/icons/` neu: `npx electron tools/make-icons.js` (rendert mit dem Chromium von Electron, keine weitere Abhängigkeit). Das Logo ist das Launcher-Icon der Handy-App (`app/src/main/res/drawable/ic_launcher_foreground.xml` auf dem Hintergrund `#D84343`). Ändert sich das Icon am Handy, `logo.svg` anpassen und das Skript laufen lassen.
 - `src/server.js`, `src/persist.js`, `src/updater.js`, `src/native-setup.js` (schreibt Manifeste und Registry), `src/smoke.js` (Selbsttest `electron . --smoke` mit `DOOMSCROLL_SMOKE_DIR`).
 - `src/ui/`: Oberfläche nach `C:\Claude\design\DESIGN.md` (Glas aus, einfach, voll; Hell, Dunkel; Animationen und Schriftgröße einstellbar).
 - `extension/`: die Browser-Erweiterung. `native-host/host.js`: der Kopplungs-Host. `test/`: `npm test` (`node --test`).

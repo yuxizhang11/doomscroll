@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('doomscroll', {
   installUpdate: call('update:install'),
   dismissUpdate: call('update:dismiss'),
   whatsNewSeen: call('whatsnew:seen'),
+  panelExpand: call('panel:expand'),
+  panelCollapse: call('panel:collapse'),
+  panelClose: call('panel:close'),
+  onPanelStage: (cb) => ipcRenderer.on('panel-stage', (_event, name) => cb(name)),
   onOpenTab: (cb) => ipcRenderer.on('open-tab', (_event, tab) => cb(tab)),
   onOpenChallenge: (cb) => ipcRenderer.on('open-challenge', (_event, scope) => cb(scope)),
 });
