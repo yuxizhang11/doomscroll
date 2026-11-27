@@ -15,6 +15,10 @@ Android-App, die Instagram Reels, YouTube Shorts und TikTok auf ein Tageslimit b
 - **Datensicherung:** Unter „Datensicherung“ lassen sich Limits, Ruhezeiten, Hinweise, Schriftgröße und der Verlauf als JSON-Datei exportieren und wieder importieren. Lockert ein Import ein Limit, braucht er den Satz; eigene Wörter des Porno-Blockers werden nur ergänzt, nie entfernt. Die Daten tragen eine Schema-Version (`Store.SCHEMA`), Migrationen laufen beim Start und bleiben abwärtskompatibel.
 - **Updates:** Release-APKs werden mit einem festen eigenen Schlüssel signiert, sobald die GitHub-Secrets `SIGNING_KEYSTORE_BASE64` und `SIGNING_PASSWORD` gesetzt sind. Dann installieren sich neue Versionen über die alte und die Einstellungen bleiben.
 
+## Windows-Variante
+
+Im Ordner [`desktop/`](desktop/README.md) liegt eine Windows-App (Electron, sitzt im Tray) mit Browser-Erweiterung für Chrome, Edge, Brave und Firefox. Sie zählt und sperrt dieselben Seiten (Instagram Reels, YouTube Shorts, TikTok, Porno-Blocker) mit eigenen Limits, ohne Abgleich mit dem Handy.
+
 ## Testen
 
 Vor jedem Release die Punkte in [`TESTLISTE.md`](TESTLISTE.md) auf dem Handy abhaken. Jede neue Version bekommt dort einen eigenen Abschnitt.
