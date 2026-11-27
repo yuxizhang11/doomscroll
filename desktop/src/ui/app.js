@@ -378,6 +378,11 @@ function extensionBadges() {
   return { link, incognito };
 }
 
+/** Karte im Panel: die Überschrift steht nur für Bildschirmleser da, sehend erklärt der Inhalt sich selbst (der Platz ist knapp). */
+function flyCard(title, ...content) {
+  return h('section', { class: 'card' }, h('h2', { class: 'sr' }, title), content);
+}
+
 function pageFlyout() {
   const t = state.total;
   const { big, sub } = todaySummary();
@@ -387,14 +392,14 @@ function pageFlyout() {
       h('progress', { max: String(Math.max(1, t.limitMin)), value: String(Math.min(t.usedMin, t.limitMin)), 'aria-label': `Gesamt: ${t.usedMin} von ${t.limitMin} Minuten`, class: t.usedMin >= t.limitMin ? 'full' : '' })))
     : null;
   const showSub = total === null || t.usedMin >= t.limitMin; // sonst steht dieselbe Zahl schon in der Zeile „Gesamt“
-  const today = card('Heute',
+  const today = flyCard('Heute',
     h('div', { class: 'big' }, big), showSub ? h('p', { class: 'muted' }, sub) : null, total,
     rows.length ? rows : h('p', { class: 'muted' }, 'Alle Apps sind ausgeschaltet. Unter „Limits“ einschalten.'));
   today.classList.add('hero');
 
   const b = extensionBadges();
   const badge = ([text, cls]) => h('span', { class: `badge ${cls}` }, text);
-  const status = card('Status',
+  const status = flyCard('Status',
     h('div', { class: 'row' }, h('span', { class: 'grow' }, 'Erweiterung'), badge(b.link)),
     h('div', { class: 'row' }, h('span', { class: 'grow' }, 'Private Fenster'), badge(b.incognito)),
     state.extension.serverError ? h('p', { class: 'error' }, state.extension.serverError) : null);
@@ -604,7 +609,7 @@ api.onOpenTab((name) => { // kann vor dem ersten Zustand ankommen: dann zeichnet
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => state && applyPrefs());
 
 // Live-Anzeige: nur Bereiche ohne Eingaben werden neu gezeichnet, damit nichts beim Tippen verspringt.
-setInterval(async () => {
+async function poll() {
   if (document.hidden) return;
   try {
     state = await api.getState();
@@ -626,7 +631,9 @@ setInterval(async () => {
     else document.getElementById('family-rows')?.replaceChildren(...browserRows());
   }
   maybePopups();
-}, 2000);
+}
+setInterval(poll, 2000);
+document.addEventListener('visibilitychange', poll); // beim Einblenden gleich frische Zahlen, nicht erst nach 2 s
 
 // Fenster ohne verbundene Erweiterung (erster Start, später über den Tray geöffnet) beginnt bei der Einrichtung.
 refresh(false).then(() => {

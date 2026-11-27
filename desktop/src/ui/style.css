@@ -296,21 +296,34 @@ html::after { content: ""; position: fixed; inset: 0; border: 1px solid var(--bo
 .chev { display: inline-block; width: 8px; height: 8px; margin-left: 10px; border: solid currentColor; border-width: 0 2px 2px 0; }
 .chev.up { transform: translateY(2px) rotate(-135deg); }
 .chev.down { transform: translateY(-2px) rotate(45deg); }
-.foot { display: none; position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 5; }
+.foot { display: none; position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 5; }
 .foot .btn { margin: 0; box-shadow: var(--rim), var(--shadow-up, var(--shadow)); }
 html[data-stage="compact"] .foot { display: block; }
 html[data-stage="compact"] .tabs, html[data-stage="compact"] #panel-less, html[data-stage="full"] .foot { display: none; }
-html[data-stage="compact"] .app { padding: 12px 12px 0; }
-html[data-stage="compact"] .top { padding: 12px 16px; margin-bottom: 12px; gap: 12px; border-radius: 24px; }
+html[data-stage="compact"] { scroll-padding-bottom: 80px; } /* die feste Leiste unten verdeckt nie das fokussierte Element */
+html[data-stage="compact"] .app { padding: 8px 8px 0; }
+html[data-stage="compact"] .top { padding: 12px 16px; margin-bottom: 8px; gap: 12px; }
 html[data-stage="compact"] .top h1 { font-size: 1.125rem; }
 html[data-stage="compact"] .top p { margin: 0; font-size: .8125rem; }
 html[data-stage="compact"] main { padding-bottom: 80px; }
-html[data-stage="compact"] .card { padding: 16px; margin-bottom: 12px; border-radius: 24px; }
+html[data-stage="compact"] .card { padding: 16px; margin-bottom: 8px; }
 html[data-stage="compact"] .card > h2 { font-size: 1rem; }
 html[data-stage="compact"] .hero .big { font-size: 1.5rem; }
-html[data-stage="compact"] .card .row { min-height: 0; padding: 6px 0; }
+html[data-stage="compact"] .card .row { min-height: 0; padding: 4px 0; }
 html[data-stage="compact"] .card .row:has(.switch) { min-height: var(--hit); }
 html[data-stage="compact"] .toast { bottom: 80px; }
 .flyout-actions { display: grid; gap: 8px; margin-top: 8px; }
 .flyout-actions .btn { margin: 0; }
-.row .badge { flex: none; }
+.row .badge { flex: 0 1 auto; white-space: normal; text-align: center; } /* bei großer Schrift darf die Angabe umbrechen, statt das Panel zu sprengen */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } /* nur für Bildschirmleser */
+
+/* Rollleiste nach DESIGN.md 6i: schmal (8 px, sichtbar 4 px), runder Daumen, Spur durchsichtig. */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 45%, transparent); border: 2px solid transparent; border-radius: 4px; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--accent) 75%, transparent); background-clip: content-box; }
+
+/* Logo: in der Glas-Stufe „voll“ als Glas-Logo (DESIGN.md 6c), sonst das flache Logo der Handy-App. */
+.top .logo.glass { display: none; }
+html[data-glass="voll"] .top .logo.flat { display: none; }
+html[data-glass="voll"] .top .logo.glass { display: block; }

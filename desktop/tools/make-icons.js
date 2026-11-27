@@ -47,15 +47,17 @@ app.whenReady().then(async () => {
   await win.loadURL('data:text/html,<meta charset=utf-8>');
   const out = (rel, data) => fs.writeFileSync(path.join(ROOT, rel), data);
   const png = {};
-  for (const size of new Set([...ICO_SIZES, 20, 28, 112])) png[size] = await render(win, size);
+  for (const size of new Set([...ICO_SIZES, 20, 29, 40])) png[size] = await render(win, size);
   out('assets/icon.png', png[256]);
   out('assets/icon.ico', ico(ICO_SIZES.map((size) => ({ size, png: png[size] }))));
-  // Tray: Windows wählt je nach Bildschirmskalierung die passende Datei (16 px bei 100 %, 32 px bei 200 %).
+  // Tray: Electron wählt je nach Bildschirmskalierung die passende Datei (16 px bei 100 %, 32 px bei 200 %); nativeImage kennt nur diese Endungen.
   out('assets/tray.png', png[16]);
   out('assets/tray@1.25x.png', png[20]);
   out('assets/tray@1.5x.png', png[24]);
-  out('assets/tray@1.75x.png', png[28]);
+  out('assets/tray@1.8x.png', png[29]);
   out('assets/tray@2x.png', png[32]);
+  out('assets/tray@2.5x.png', png[40]);
+  out('assets/tray@3x.png', png[48]);
   for (const size of [16, 48, 128]) out(`extension/icons/icon-${size}.png`, png[size] ?? (await render(win, size)));
   app.exit(0);
 }).catch((err) => { console.error(err); app.exit(1); });

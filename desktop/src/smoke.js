@@ -168,13 +168,25 @@ async function run({ app, getWin, tray, getServer, token, port, store }) {
     check('compactSwitchesLabelled', await js("[...document.querySelectorAll('#view [role=switch]')].length === 2 && [...document.querySelectorAll('#view [role=switch]')].every((e) => e.getAttribute('aria-label'))"));
     // Logo und Symbole: Dateien da, Logo in der Kopfzeile geladen
     const assets = path.join(__dirname, '..', 'assets');
-    check('iconFilesExist', ['icon.ico', 'icon.png', 'logo.svg', 'tray.png', 'tray@2x.png'].every((f) => fs.existsSync(path.join(assets, f))) && ['16', '48', '128'].every((n) => fs.existsSync(path.join(vm.extension.dir, 'icons', `icon-${n}.png`))));
-    check('headerLogoLoaded', await js("(() => { const i = document.querySelector('.top .logo'); return i.complete && i.naturalWidth > 0; })()"));
+    check('iconFilesExist', ['icon.ico', 'icon.png', 'logo.svg', 'logo-glass.svg', 'tray.png', 'tray@1.8x.png', 'tray@2x.png'].every((f) => fs.existsSync(path.join(assets, f))) && ['16', '48', '128'].every((n) => fs.existsSync(path.join(vm.extension.dir, 'icons', `icon-${n}.png`))));
+    check('headerLogoLoaded', await js("(() => { return [...document.querySelectorAll('.top .logo')].length === 2 && [...document.querySelectorAll('.top .logo')].every((i) => i.complete && i.naturalWidth > 0); })()"));
     for (const [name, theme, glass] of [['flyout-dunkel-voll', 'dunkel', 'voll'], ['flyout-hell-aus', 'hell', 'aus'], ['flyout-hell-voll', 'hell', 'voll'], ['flyout-dunkel-einfach', 'dunkel', 'einfach']]) {
       await js(`window.doomscroll.setPref('theme','${theme}');window.doomscroll.setPref('glass','${glass}');`);
       await sleep(2600);
       await shot(win, path.join(dir, `${name}.png`));
     }
+    // Große Schrift: nichts ragt aus dem Panel (die Seite schneidet seitlich ab, darum je Element gemessen)
+    for (const scale of [150, 200]) {
+      await js(`window.doomscroll.setPref('text_scale', ${scale})`);
+      await sleep(2600);
+      check(`compactFitsAtText${scale}`, await js(`(() => { const w = innerWidth; return document.documentElement.scrollWidth <= w && [...document.querySelectorAll('.top, .top h1, .card, .row, .foot .btn, .badge')].every((e) => { const r = e.getBoundingClientRect(); return r.left >= -0.5 && r.right <= w + 0.5; }); })()`));
+      await shot(win, path.join(dir, `flyout-schrift-${scale}.png`));
+    }
+    await js('window.scrollTo(0, 99999)');
+    await sleep(300);
+    await shot(win, path.join(dir, 'flyout-schrift-200-unten.png'));
+    await js("window.doomscroll.setPref('text_scale', 100)");
+    await sleep(2600);
     await js('window.scrollTo(0, 99999)'); // unterer Teil des Panels (Schnellschalter)
     await sleep(300);
     await shot(win, path.join(dir, 'flyout-unten-dunkel-einfach.png'));
