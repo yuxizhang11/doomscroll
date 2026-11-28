@@ -9,6 +9,7 @@ const MAX = 600;
 
 let state = null;
 let tab = 'heute';
+let stage = 'compact'; // 'compact' = kleines Panel am Tray, 'full' = aufgeklappt mit allen Reitern (entscheidet main.js)
 let draft = null; // Limit-Einstellungen, die noch nicht gespeichert sind
 let toastTimer = null;
 let lastTodayKey = '';
@@ -45,8 +46,8 @@ function card(title, ...content) {
   return h('section', { class: 'card' }, title ? h('h2', null, title) : null, content);
 }
 
-function sw(checked, onchange, label) {
-  return h('span', { class: 'switch' }, h('input', { type: 'checkbox', role: 'switch', 'aria-label': label, checked, onchange: (e) => onchange(e.target.checked, e.target) }), h('span', { class: 'track' }));
+function sw(checked, onchange, label, k) {
+  return h('span', { class: 'switch' }, h('input', { type: 'checkbox', role: 'switch', 'aria-label': label, 'data-k': k, checked, onchange: (e) => onchange(e.target.checked, e.target) }), h('span', { class: 'track' }));
 }
 
 function stepper(value, set, { label, unit = 'min', min = 0, max = MAX, step = MIN, zeroText }) {
@@ -79,11 +80,21 @@ function applyPrefs() {
 
 // ---------- Zustand holen ----------
 
+/** Übernimmt die Stufe des Panels; true, wenn sie sich geändert hat (dann ist neu zu zeichnen). */
+function syncStage(next) {
+  if (next !== 'compact' && next !== 'full') return false;
+  root.dataset.stage = next;
+  if (next === stage) return false;
+  stage = next;
+  return true;
+}
+
 async function refresh(full = true) {
   state = await api.getState();
+  const changed = syncStage(state.stage);
   applyPrefs();
   renderHeader();
-  if (full) render();
+  if (full || changed) render();
 }
 
 function renderHeader() {
@@ -100,9 +111,11 @@ function render(still = false) {
     else b.removeAttribute('aria-current');
   }
   const pages = { heute: pageToday, limits: pageLimits, erweiterung: pageExtension, mehr: pageMore };
-  const nodes = pages[tab]();
+  const nodes = stage === 'compact' ? pageFlyout() : pages[tab]();
   nodes.forEach((n, i) => n.style.setProperty('--i', String(i)));
+  const focused = view.contains(document.activeElement) ? document.activeElement.dataset?.k : null; // Fokus übersteht das Neuzeichnen
   view.replaceChildren(...nodes);
+  if (focused) view.querySelector(`[data-k="${focused}"]`)?.focus({ preventScroll: true });
 }
 
 // ---------- Heute ----------
@@ -113,7 +126,7 @@ function problemBanner() {
   if (ex.serverError) lines.push(ex.serverError);
   for (const p of ex.problems) {
     lines.push(p.kind === 'missing'
-      ? `${p.label} läuft, aber die Erweiterung meldet sich nicht. Dort wird nichts gezählt oder gesperrt.`
+      ? `${p.label} läuft, aber die Erweiterung meldet sich nicht. Dort wird nichts gezählt oder gesperrt. Nach einem Neustart des Browsers kann sie ausgeschaltet oder weg sein: Im Reiter „Erweiterung“ steht der Weg zurück.`
       : `Die Erweiterung in ${p.label} darf nicht in privaten Fenstern laufen. Dort ist nichts gesperrt.`);
   }
   const connected = Object.values(ex.families).some((f) => f.state === 'ok');
@@ -127,7 +140,8 @@ function problemBanner() {
     h('button', { type: 'button', class: 'btn', onclick: () => { tab = 'erweiterung'; render(); } }, 'Zur Erweiterung'));
 }
 
-function pageToday() {
+/** Überschrift und Satz zum Stand des Tages (große Zeile in „Heute“ und im Panel). */
+function todaySummary() {
   const t = state.total;
   const left = Math.max(0, t.limitMin - t.usedMin);
   let big;
@@ -148,15 +162,25 @@ function pageToday() {
     big = `Noch ${left} min`;
     sub = `${t.usedMin} von ${t.limitMin} min heute genutzt.`;
   }
-  const hero = h('section', { class: 'card hero' }, h('div', { class: 'big' }, big), h('p', { class: 'muted' }, sub));
+  return { big, sub };
+}
 
-  const rows = state.apps.filter((a) => a.enabled).map((a) => {
+/** Verbrauch je eingeschalteter App mit Balken. */
+function usageRows() {
+  const t = state.total;
+  return state.apps.filter((a) => a.enabled).map((a) => {
     const limit = a.limitMin ?? t.limitMin;
     const used = a.usedMin;
     const right = a.unlocked || t.unlockedAll ? `${a.usedMin} min · frei` : a.limitMin == null ? `${a.usedMin} min` : `${a.usedMin} / ${a.limitMin} min`;
     const bar = h('progress', { max: String(Math.max(1, limit)), value: String(a.unlocked || t.unlockedAll ? 0 : Math.min(used, limit)), 'aria-label': `${a.label}: ${right}`, class: used >= limit && !(a.unlocked || t.unlockedAll) ? 'full' : '' });
     return h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'row', style: 'min-height:0' }, h('span', null, a.label), h('span', { class: 'muted' }, right)), bar));
   });
+}
+
+function pageToday() {
+  const { big, sub } = todaySummary();
+  const hero = h('section', { class: 'card hero' }, h('div', { class: 'big' }, big), h('p', { class: 'muted' }, sub));
+  const rows = usageRows();
   const usage = card('Heute', rows.length ? rows : h('p', { class: 'muted' }, 'Alle Apps sind ausgeschaltet. Unter „Limits“ einschalten.'));
 
   const max = Math.max(1, ...state.week.map((d) => d.minutes));
@@ -234,44 +258,107 @@ async function save() {
 
 // ---------- Erweiterung ----------
 
-const STATE_TEXT = { ok: ['Verbunden', 'ok'], missing: ['Meldet sich nicht', 'bad'], idle: ['Browser nicht gestartet', 'idle'], unknown: ['Unbekannt', 'idle'] };
+const STATE_TEXT = { ok: ['Erweiterung verbunden', 'ok'], missing: ['Erweiterung fehlt', 'bad'], idle: ['Browser nicht gestartet', 'idle'], unknown: ['Status unbekannt', 'idle'] };
+let setupBrowser = null; // Browser, für den die Schritte gezeigt werden
+let shownBrowsers = ''; // erkannte Browser der letzten Darstellung
 
-function familyRows() {
-  return Object.entries(state.extension.families).map(([, f]) => {
-    const [text, cls] = STATE_TEXT[f.state];
-    const incog = f.state !== 'ok' ? null
-      : f.incognito === 'denied' ? h('span', { class: 'badge bad' }, 'Private Fenster nicht erlaubt')
-      : f.incognito === 'ok' ? h('span', { class: 'badge ok' }, 'Private Fenster erlaubt')
+function browserRows() {
+  const list = state.extension.browsers;
+  if (!state.extension.browsersKnown) return [h('p', { class: 'muted' }, 'Suche nach installierten Browsern …')];
+  if (list.length === 0) return [h('p', { class: 'muted' }, 'Es wurde kein Chrome, Edge, Brave oder Firefox gefunden. Bei einem anderen Browser auf Chromium-Basis klappt dieselbe Einrichtung wie bei Chrome mit dem Ordner unten.')];
+  const rows = list.map((b) => {
+    const [text, cls] = STATE_TEXT[b.state];
+    const incog = b.state !== 'ok' ? null
+      : b.incognito === 'denied' ? h('span', { class: 'badge bad' }, 'Private Fenster nicht erlaubt')
+      : b.incognito === 'ok' ? h('span', { class: 'badge ok' }, 'Private Fenster erlaubt')
       : h('span', { class: 'badge idle' }, 'Private Fenster unbekannt');
-    return h('div', { class: 'row' }, h('span', { class: 'grow' }, f.label), h('span', { class: 'status-line' }, h('span', { class: `badge ${cls}` }, text), incog));
+    return h('div', { class: 'row' }, h('span', { class: 'grow' }, b.label), h('span', { class: 'status-line' }, h('span', { class: `badge ${cls}` }, text), incog));
   });
+  if (list.some((b) => b.shared) && list.some((b) => b.id === 'chrome') && list.some((b) => b.id === 'brave')) rows.push(h('p', { class: 'muted' }, 'Chrome und Brave lassen sich für die Erweiterung nicht unterscheiden: „Verbunden“ gilt für den Browser, in dem sie läuft.'));
+  return rows;
+}
+
+async function openPage(id, target) {
+  const res = await api.openBrowser(id, target);
+  if (!res.ok) toast(res.message ?? 'Der Browser lässt sich nicht öffnen.');
+}
+
+function folderButtons() {
+  return [
+    h('code', { class: 'path' }, state.extension.dir),
+    h('div', { class: 'row-actions' },
+      h('button', { type: 'button', class: 'btn', onclick: async () => { const r = await api.openExtensionFolder(); if (!r.ok) toast(r.message); } }, 'Ordner öffnen'),
+      h('button', { type: 'button', class: 'btn', onclick: async () => { await api.copyExtensionPath(); toast('Pfad kopiert'); } }, 'Pfad kopieren')),
+  ];
+}
+
+function setupSteps(b) {
+  const open = h('button', { type: 'button', class: 'btn primary', onclick: () => openPage(b.id, 'extensions') }, `${b.label} öffnen und Erweiterungsseite zeigen`);
+  if (b.id === 'firefox' && state.extension.firefoxXpi.active) {
+    return h('ol', { class: 'steps' },
+      h('li', null, 'Firefox einmal ganz beenden und neu starten. Die Erweiterung ist per Firefox-Richtlinie fest eingetragen und kommt von selbst (', h('code', null, 'about:policies'), ' zeigt die Richtlinie, ', h('code', null, 'about:addons'), ' die Erweiterung).'),
+      h('li', null, 'Private Fenster erlauben: ', h('code', null, 'about:addons'), ' öffnen, „Doomscroll Blocker“ wählen und „In privaten Fenstern ausführen“ auf „Erlauben“ stellen.'),
+      h('li', null, 'Fertig: Oben steht „Erweiterung verbunden“, sobald sich App und Erweiterung gefunden haben.'));
+  }
+  if (b.id === 'firefox') {
+    return h('ol', { class: 'steps' },
+      h('li', null, 'Firefox mit der Seite zum Testen von Add-ons öffnen.', h('div', { class: 'row-actions' }, open)),
+      h('li', null, 'Dort „Dieser Firefox“ wählen, dann „Temporäres Add-on laden …“ und im Ordner der Erweiterung die Datei ', h('code', null, 'manifest.json'), ' auswählen:', folderButtons()),
+      h('li', null, 'Private Fenster erlauben: ', h('code', null, 'about:addons'), ' öffnen, „Doomscroll Blocker“ wählen und „In privaten Fenstern ausführen“ auf „Erlauben“ stellen.'),
+      h('li', null, 'Fertig: Oben steht „Erweiterung verbunden“, sobald sich App und Erweiterung gefunden haben. Einen Code musst du nicht kopieren.'));
+  }
+  return h('ol', { class: 'steps' },
+    h('li', null, `${b.label} mit der Seite für Erweiterungen öffnen.`, h('div', { class: 'row-actions' }, open)),
+    h('li', null, b.id === 'edge' ? 'Links in der Seitenleiste „Entwicklermodus“ einschalten.' : 'Oben rechts „Entwicklermodus“ einschalten.'),
+    h('li', null, '„Entpackte Erweiterung laden“ wählen und diesen Ordner auswählen (im Dateidialog den Pfad in die Adresszeile einfügen):', folderButtons()),
+    h('li', null, `Private Fenster erlauben: die Detailseite der Erweiterung öffnen und „${b.incognitoLabel}“ einschalten.`,
+      h('div', { class: 'row-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => openPage(b.id, 'details') }, 'Detailseite der Erweiterung öffnen'))),
+    h('li', null, 'Fertig: Oben steht „Erweiterung verbunden“, sobald sich App und Erweiterung gefunden haben. Einen Code musst du nicht kopieren.'));
+}
+
+/** Ehrlicher Hinweis, ob und wie lange die Erweiterung nach einem Neustart des Browsers bleibt. */
+function persistenceNote(b) {
+  if (b.id === 'firefox') {
+    const x = state.extension.firefoxXpi;
+    if (x.active) return 'Diese Installation bleibt nach Neustarts von Firefox bestehen. Sie verschwindet erst, wenn du die App deinstallierst.';
+    if (x.present) return 'Die von Mozilla signierte Fassung liegt bei, ist aber noch nicht in Firefox eingetragen. Das macht das Setup bei „Für alle Benutzer installieren“ (Administratorrechte); danach Firefox neu starten. Bis dahin gilt der temporäre Weg oben: Firefox behält ein temporär geladenes Add-on nur bis zum nächsten Neustart, dann wiederholst du die Schritte 1 und 2.';
+    return 'Firefox behält temporär geladene Add-ons nur bis zum nächsten Neustart des Browsers; danach wiederholst du die Schritte 1 und 2. Dauerhaft geht das in Firefox nur mit einer von Mozilla signierten Fassung der Erweiterung. Diese Fassung der App enthält noch keine.';
+  }
+  return 'Entpackte Erweiterungen bleiben nach einem Neustart des Browsers geladen, solange dieser Ordner an Ort und Stelle bleibt (die App muss also installiert bleiben). Chrome und Edge fragen beim Start unter Umständen „Erweiterungen im Entwicklermodus deaktivieren“: Lass sie dort nicht ausschalten. Schaltet der Browser die Erweiterung trotzdem aus oder entfernt sie, zeigt die App „Erweiterung fehlt“; dann auf der Erweiterungsseite wieder einschalten oder die Schritte 2 und 3 wiederholen. Fest per Richtlinie installieren geht in Chrome und Edge nur auf verwalteten Rechnern (Domäne, Firmenverwaltung) oder über den jeweiligen Store; beides gibt es hier nicht.';
 }
 
 function pageExtension() {
-  const status = card('Browser', h('div', { id: 'family-rows' }, familyRows()),
-    state.extension.serverError ? h('p', { class: 'error' }, state.extension.serverError) : null,
+  const ex = state.extension;
+  const list = ex.browsers;
+  if (!list.some((b) => b.id === setupBrowser)) setupBrowser = (list.find((b) => b.state !== 'ok') ?? list[0])?.id ?? null;
+  const chosen = list.find((b) => b.id === setupBrowser);
+  shownBrowsers = ex.browsersKnown + list.map((b) => b.id).join();
+
+  const status = card('Browser', h('div', { id: 'family-rows' }, browserRows()),
+    ex.serverError ? h('p', { class: 'error' }, ex.serverError) : null,
+    ex.nativeErrors.length > 0 ? h('p', { class: 'error' }, `Die automatische Kopplung ließ sich nicht einrichten (${ex.nativeErrors.join(', ')}). Nutze unten die Kopplung von Hand.`) : null,
     h('p', { class: 'muted' }, 'Die App zählt nur, was die Erweiterung meldet. Ohne Erweiterung bleibt der Browser frei.'));
 
+  const pick = list.length > 1
+    ? h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Browser für die Einrichtung' },
+      list.map((b) => h('label', null, h('input', { type: 'radio', name: 'setup-browser', checked: b.id === setupBrowser, onchange: () => { setupBrowser = b.id; render(); } }), h('span', null, b.label))))
+    : null;
   const setup = card('Erweiterung einrichten',
-    h('ol', { class: 'steps' },
-      h('li', null, 'Chrome, Edge, Brave: Erweiterungen öffnen, Entwicklermodus einschalten, „Entpackte Erweiterung laden“ und den Ordner ', h('code', null, state.extension.dir), ' wählen.'),
-      h('li', null, 'Firefox: ', h('code', null, 'about:debugging'), ' öffnen, „Dieser Firefox“, „Temporäres Add-on laden“ und die Datei ', h('code', null, 'manifest.json'), ' im selben Ordner wählen.'),
-      h('li', null, 'In den Einstellungen der Erweiterung den Kopplungscode einfügen:')),
-    h('button', { type: 'button', class: 'btn primary block', onclick: async () => { await api.copyToken(); toast('Kopplungscode kopiert'); } }, 'Kopplungscode kopieren'),
-    h('p', { class: 'muted', style: 'margin-top:16px' }, `Die App lauscht nur auf 127.0.0.1, Port ${state.extension.port}. Der Code schützt sie vor anderen Programmen und Webseiten.`));
+    h('p', null, 'Die Erweiterung lädst du einmal selbst in den Browser. Die Kopplung mit der App läuft danach von selbst.'),
+    pick,
+    chosen ? setupSteps(chosen) : null,
+    chosen ? h('p', { class: 'muted' }, persistenceNote(chosen)) : null);
 
-  const priv = card('Private Fenster',
-    h('p', null, 'Die Erweiterung ist für private Fenster vorbereitet, aber der Browser verlangt, dass du das einmal selbst erlaubst:'),
-    h('ul', { class: 'notes' },
-      h('li', null, 'Chrome, Brave: Erweiterungen verwalten, bei Doomscroll Blocker „Details“, „In Inkognito zulassen“.'),
-      h('li', null, 'Edge: „In InPrivate zulassen“.'),
-      h('li', null, 'Firefox: about:addons, Doomscroll Blocker, „In privaten Fenstern ausführen“ auf „Erlauben“.')),
-    h('p', { class: 'muted', style: 'margin-top:8px' }, 'Die App zeigt oben „Private Fenster nicht erlaubt“, solange das fehlt.'));
+  const manual = h('details', { class: 'card manual' },
+    h('summary', null, 'Kopplung von Hand (nur wenn die automatische nicht klappt)'),
+    h('p', null, 'Kopiere den Kopplungscode und füge ihn in den Einstellungen der Erweiterung ein (Erweiterungsseite des Browsers, bei Doomscroll Blocker „Erweiterungsoptionen“).'),
+    h('button', { type: 'button', class: 'btn block', onclick: async () => { await api.copyToken(); toast('Kopplungscode kopiert'); } }, 'Kopplungscode kopieren'),
+    h('p', { class: 'muted', style: 'margin-top:16px' }, `Die App lauscht nur auf 127.0.0.1, Port ${ex.port}. Der Code schützt sie vor anderen Programmen und Webseiten.`));
 
   const admin = card('Fest erzwingen',
     h('p', null, 'Ohne Administratorrechte lässt sich nicht verhindern, dass jemand die Erweiterung entfernt oder einen anderen Browser nutzt. Mit Administratorrechten kann man sie per Browser-Richtlinie fest installieren und gegen Entfernen sperren (Chrome und Edge: ', h('code', null, 'ExtensionInstallForcelist'), ', Firefox: ', h('code', null, 'ExtensionSettings'), ', dort auch für private Fenster).'),
     h('p', { class: 'muted' }, 'Das richtet diese App nicht ein. Es ist nur ein Hinweis.'));
-  return [status, setup, priv, admin];
+  return [status, setup, manual, admin];
 }
 
 // ---------- Mehr ----------
@@ -286,6 +373,75 @@ async function setPref(key, value) {
   const res = await api.setPref(key, value);
   if (res.ok) await refresh(false);
   return res;
+}
+
+/** Einschalten gilt sofort, Ausschalten nur mit den 20 abgetippten Zeichen (der Schalter bleibt bis dahin an). */
+function autostartSwitch(k) {
+  return sw(state.prefs.autostart, async (on, el) => { if (on) await setPref('autostart', true); else { el.checked = true; openChallenge('AUTOSTART'); } }, 'Mit Windows starten', k);
+}
+
+// ---------- Panel am Tray ----------
+
+/** Zustand der Erweiterung in zwei kurzen Angaben: [Text, Farbe] für „Erweiterung“ und „Private Fenster“. */
+function extensionBadges() {
+  const ex = state.extension;
+  const fams = Object.values(ex.families);
+  const ok = fams.filter((f) => f.state === 'ok');
+  const missing = fams.some((f) => f.state === 'missing');
+  const link = ok.length > 0 && !missing ? ['verbunden', 'ok'] : missing ? ['fehlt', 'bad'] : ex.needsSetup ? ['nicht eingerichtet', 'bad'] : ['Browser aus', 'idle'];
+  const incognito = ok.length === 0 ? ['unbekannt', 'idle']
+    : ok.some((f) => f.incognito === 'denied') ? ['nicht geschützt', 'bad']
+    : ok.every((f) => f.incognito === 'ok') ? ['geschützt', 'ok'] : ['unbekannt', 'idle'];
+  return { link, incognito };
+}
+
+/** Karte im Panel: die Überschrift steht nur für Bildschirmleser da, sehend erklärt der Inhalt sich selbst (der Platz ist knapp). */
+function flyCard(title, ...content) {
+  return h('section', { class: 'card' }, h('h2', { class: 'sr' }, title), content);
+}
+
+function pageFlyout() {
+  const t = state.total;
+  const { big, sub } = todaySummary();
+  const rows = usageRows();
+  const total = !t.perApp && !t.unlockedAll
+    ? h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', { class: 'row', style: 'min-height:0' }, h('span', null, 'Gesamt'), h('span', { class: 'muted' }, `${t.usedMin} / ${t.limitMin} min`)),
+      h('progress', { max: String(Math.max(1, t.limitMin)), value: String(Math.min(t.usedMin, t.limitMin)), 'aria-label': `Gesamt: ${t.usedMin} von ${t.limitMin} Minuten`, class: t.usedMin >= t.limitMin ? 'full' : '' })))
+    : null;
+  const showSub = total === null || t.usedMin >= t.limitMin; // sonst steht dieselbe Zahl schon in der Zeile „Gesamt“
+  const today = flyCard('Heute',
+    h('div', { class: 'big' }, big), showSub ? h('p', { class: 'muted' }, sub) : null, total,
+    rows.length ? rows : h('p', { class: 'muted' }, 'Alle Apps sind ausgeschaltet. Unter „Limits“ einschalten.'));
+  today.classList.add('hero');
+
+  const b = extensionBadges();
+  const badge = ([text, cls]) => h('span', { class: `badge ${cls}` }, text);
+  const status = flyCard('Status',
+    h('div', { class: 'row' }, h('span', { class: 'grow' }, 'Erweiterung'), badge(b.link)),
+    h('div', { class: 'row' }, h('span', { class: 'grow' }, 'Private Fenster'), badge(b.incognito)),
+    state.extension.serverError ? h('p', { class: 'error' }, state.extension.serverError) : null);
+
+  const p = state.prefs;
+  const notices = ['hint_remaining', 'hint_warning', 'hint_extension'];
+  const switches = card('Schnell',
+    h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', null, 'Meldungen'), h('div', { class: 'muted small' }, 'Restzeit, Vorwarnung, Erweiterung fehlt')),
+      sw(notices.some((k) => p.hints[k]), async (on) => { for (const k of notices) await setPref(k, on); }, 'Meldungen', 'notices')),
+    h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', null, 'Mit Windows starten'), h('div', { class: 'muted small' }, 'Ausschalten braucht 20 Zeichen')), autostartSwitch('autostart')),
+    h('div', { class: 'flyout-actions' },
+      t.unlockedAll ? null : h('button', { type: 'button', class: 'btn', 'data-k': 'unlock', onclick: () => openChallenge('ALL') }, 'Sperre aufheben …'),
+      h('button', { type: 'button', class: 'btn', 'data-k': 'setup', onclick: () => { tab = 'erweiterung'; expand(); } }, 'Erweiterung einrichten')));
+
+  return [status, today, switches];
+}
+
+async function expand() {
+  await api.panelExpand();
+  document.getElementById('panel-less').focus({ preventScroll: true });
+}
+
+async function collapse() {
+  await api.panelCollapse();
+  document.getElementById('panel-more').focus({ preventScroll: true });
 }
 
 function pageMore() {
@@ -319,7 +475,7 @@ function pageMore() {
 
   const autostart = card('Start mit Windows',
     h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', null, 'Mit Windows starten'), h('div', { class: 'muted small' }, 'Im Tray, ohne Fenster. Ausschalten braucht 20 abgetippte Zeichen.')),
-      sw(p.autostart, async (on, el) => { if (on) await setPref('autostart', true); else { el.checked = true; openChallenge('AUTOSTART'); } }, 'Mit Windows starten')));
+      autostartSwitch()));
 
   const backupMsg = h('p', { class: 'muted', role: 'status' });
   const backup = card('Datensicherung',
@@ -449,26 +605,56 @@ function maybePopups() {
 for (const b of document.querySelectorAll('.tabs button')) {
   b.addEventListener('click', () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); view.focus({ preventScroll: true }); });
 }
+document.getElementById('panel-more').addEventListener('click', () => { tab = 'heute'; expand(); });
+document.getElementById('panel-less').addEventListener('click', collapse);
+document.getElementById('panel-close').addEventListener('click', () => api.panelClose());
+// Esc schließt das Panel, außer ein Dialog oder eine Auswahlliste hat es gerade selbst belegt.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('dialog[open]') || document.activeElement?.tagName === 'SELECT') return;
+  api.panelClose();
+});
+api.onPanelStage((next) => {
+  if (!syncStage(next)) return;
+  if (state) { render(); window.scrollTo(0, 0); }
+});
 api.onOpenChallenge((scope) => openChallenge(scope));
+api.onOpenTab((name) => { // kann vor dem ersten Zustand ankommen: dann zeichnet der Start den Reiter
+  if (name !== 'erweiterung') return;
+  tab = name;
+  if (state) { render(); window.scrollTo(0, 0); }
+});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => state && applyPrefs());
 
 // Live-Anzeige: nur Bereiche ohne Eingaben werden neu gezeichnet, damit nichts beim Tippen verspringt.
-setInterval(async () => {
+async function poll() {
   if (document.hidden) return;
   try {
     state = await api.getState();
   } catch {
     return;
   }
+  if (syncStage(state.stage)) render();
   applyPrefs();
   renderHeader();
-  const key = JSON.stringify([state.total, state.apps, state.week, state.quietNow, state.extension, state.activeApp]);
-  if (tab === 'heute' && !chDialog.open && key !== lastTodayKey) {
+  const key = JSON.stringify([state.total, state.apps, state.week, state.quietNow, state.extension, state.activeApp, state.prefs]);
+  if ((stage === 'compact' || tab === 'heute') && !chDialog.open && key !== lastTodayKey) {
     lastTodayKey = key;
     render(true);
   }
-  if (tab === 'erweiterung') document.getElementById('family-rows')?.replaceChildren(...familyRows());
+  if (stage === 'full' && tab === 'erweiterung') {
+    // Wurden Browser gerade erst erkannt, wird die Seite neu gebaut (sie hat keine Eingaben); sonst nur der Status.
+    const ids = state.extension.browsersKnown + state.extension.browsers.map((b) => b.id).join();
+    if (ids !== shownBrowsers) render(true);
+    else document.getElementById('family-rows')?.replaceChildren(...browserRows());
+  }
   maybePopups();
-}, 2000);
+}
+setInterval(poll, 2000);
+document.addEventListener('visibilitychange', poll); // beim Einblenden gleich frische Zahlen, nicht erst nach 2 s
 
-refresh().then(maybePopups);
+// Fenster ohne verbundene Erweiterung (erster Start, später über den Tray geöffnet) beginnt bei der Einrichtung.
+refresh(false).then(() => {
+  if (state.extension.needsSetup) tab = 'erweiterung'; // gilt für die aufgeklappte Ansicht; das Panel zeigt den Zustand im Kasten „Status“
+  render();
+  maybePopups();
+});

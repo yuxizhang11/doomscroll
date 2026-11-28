@@ -9,7 +9,8 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "dist": "electron-builder --win nsis --x64 --publish never"
+    "dist": "electron-builder --win nsis --x64 --publish never",
+    "firefox:signieren": "node tools/firefox-signieren.js"
   },
   "devDependencies": {
     "electron": "^45.3.0",
@@ -32,6 +33,17 @@
       {
         "from": "extension",
         "to": "extension"
+      },
+      {
+        "from": "native-host",
+        "to": "native-host"
+      },
+      {
+        "from": "firefox",
+        "to": "firefox",
+        "filter": [
+          "*.xpi"
+        ]
       }
     ],
     "win": {
@@ -43,7 +55,7 @@
           ]
         }
       ],
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -52,7 +64,9 @@
       "artifactName": "Doomscroll-Desktop-Setup-${version}.exe",
       "createDesktopShortcut": false,
       "createStartMenuShortcut": true,
-      "include": "installer/installer.nsh"
+      "include": "installer/installer.nsh",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
     }
   }
 }

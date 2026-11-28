@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72" width="72" height="72">
+  <!-- Logo der Handy-App: app/src/main/res/drawable/ic_launcher_foreground.xml auf dem Hintergrund #D84343 (values/colors.xml), Ausschnitt 72 von 108 wie bei der Launcher-Maske -->
+  <rect x="18" y="18" width="72" height="72" rx="16" fill="#D84343"/>
+  <path d="M42,30 L66,30 Q70,30 70,34 L70,74 Q70,78 66,78 L42,78 Q38,78 38,74 L38,34 Q38,30 42,30 Z" fill="none" stroke="#FFFFFF" stroke-width="5"/>
+  <path d="M30,52 L78,52 L78,58 L30,58 Z" fill="#FFFFFF"/>
+</svg>

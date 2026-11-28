@@ -10,9 +10,19 @@ npm install
 npm start
 ```
 
-Beim ersten Start zeigt sich das Fenster, danach sitzt die App im Tray (Klick öffnet das Fenster). Der Start mit Windows ist standardmäßig an (`--hidden`, also ohne Fenster); Ausschalten braucht 20 abgetippte Zeichen. Achtung: Mit `npm start` trägt sich der Autostart auf den Entwicklungsordner ein; die installierte Fassung (siehe „Installer bauen“) trägt ihre eigene Exe ein.
+Beim ersten Start zeigt sich das aufgeklappte Fenster gleich auf dem Reiter „Erweiterung“ (geführte Einrichtung), danach sitzt die App im Tray (Klick öffnet das kleine Panel, siehe „Panel am Tray“; solange sich noch nie eine Erweiterung verbunden hat, beginnt das aufgeklappte Fenster wieder bei der Einrichtung, und im Tray-Menü gibt es „Erweiterung einrichten …“). Der Start mit Windows ist standardmäßig an (`--hidden`, also ohne Fenster); Ausschalten braucht 20 abgetippte Zeichen. Achtung: Mit `npm start` trägt sich der Autostart auf den Entwicklungsordner ein; die installierte Fassung (siehe „Installer bauen“) trägt ihre eigene Exe ein.
 
 Zum Beenden: Tray-Menü „Beenden …“ oder Reiter „Mehr“, dann 20 Zeichen abtippen. Das Fenster schließen lässt die App im Tray weiterlaufen.
+
+## Panel am Tray
+
+Ein Linksklick auf das Tray-Symbol öffnet ein kleines Panel (360 × 480 px, rahmenlos) direkt am Symbol; ein zweiter Klick schließt es wieder.
+
+- Inhalt: Kopfzeile mit Logo, Status („Erweiterung“: verbunden, fehlt, nicht eingerichtet, Browser aus; „Private Fenster“: geschützt, nicht geschützt, unbekannt), Verbrauch heute je App mit dem Gesamtlimit, Schnellschalter und „Mehr“. Die Schalter: „Meldungen“ (schaltet Restzeit, Vorwarnung und „Erweiterung fehlt“ zusammen; einzeln unter „Mehr“, „Hinweise“), „Mit Windows starten“ (Einschalten sofort, Ausschalten nur mit den 20 abgetippten Zeichen), dazu „Sperre aufheben …“ (Satz abtippen) und „Erweiterung einrichten“.
+- „Mehr“ klappt dasselbe Fenster zu den vollen Reitern (Heute, Limits, Erweiterung, Mehr) auf, es wächst von der Taskleiste weg (520 × 760 px, kleiner, wenn der Bildschirm es nicht hergibt). „Weniger“ klappt wieder ein. Die Animation folgt der Einstellung „Animationen“ (Reiter „Mehr“); steht sie auf „Wie Windows“, entfällt sie bei „reduzierter Bewegung“ in Windows.
+- Das kleine Panel schließt bei Fokusverlust (nicht mitten in der Animation und nicht, solange es noch nie den Fokus hatte) und mit Esc. Das aufgeklappte Fenster bleibt bei Fokusverlust offen, damit die geführte Einrichtung beim Wechsel in den Browser stehen bleibt; es schließt mit ✕, Esc oder einem Klick auf das Tray-Symbol, „Weniger“ klappt es zum kleinen Panel ein (es hat keinen Systemrahmen, die Kopfleiste zieht es). Das Fenster lässt sich nicht in der Größe ziehen. `thickFrame` ist aus, weil `setBounds` sonst bei rahmenlosen Fenstern die Zeichenfläche um den unsichtbaren Rand vergrößert; dafür fehlen Systemschatten und -rand, ein feiner eigener Rand ersetzt ihn.
+- Rechtsklick zeigt das Menü: „Öffnen“ (aufgeklapptes Fenster), „Erweiterung einrichten …“, „Beenden …“. Ein zweiter Start der App und der erste Start nach der Installation öffnen ebenfalls das aufgeklappte Fenster.
+- Position: `src/core/flyout.js` (reine Funktionen, getestet in `test/flyout.test.js`) rechnet aus `tray.getBounds()` und dem Bildschirm (Arbeitsbereich) die Lage aus. Die Taskleiste wird daran erkannt, dass der Arbeitsbereich kleiner ist als der Bildschirm (unten, oben, links, rechts); bei ausgeblendeter Taskleiste zählt der nächste Bildschirmrand. Das Panel ist auf das Symbol zentriert, bleibt 8 px vom Rand weg und im Arbeitsbereich. Ist die Tray-Position unbrauchbar (Symbol im Überlauf), sitzt es unten rechts. Ein Tray-Klick, der das Panel gerade durch den Fokusverlust geschlossen hat, öffnet es nicht gleich wieder.
 
 ## Installer bauen
 
@@ -22,32 +32,65 @@ npm install
 npm run dist
 ```
 
-Ergebnis: `desktop/dist/Doomscroll-Desktop-Setup-<version>.exe` (NSIS, Windows x64, Installation pro Benutzer, Zielordner wählbar) und der entpackte Stand `desktop/dist/win-unpacked/`. Die Erweiterung liegt im installierten Stand unter `resources/extension` (als `extraResources`, weil Browser nicht aus `asar` laden); der Reiter „Erweiterung“ zeigt diesen Pfad zum Laden an. Es gibt eine Startmenü-, aber keine Desktop-Verknüpfung. Beim Deinstallieren entfernt `installer/installer.nsh` den Autostart-Eintrag (Name wie die AppUserModelID in `main.js`); die Daten in `%APPDATA%\doomscroll-desktop` bleiben bewusst erhalten, damit Deinstallieren und Neuinstallieren das Tageslimit nicht zurücksetzt. Eine laufende App beendet der Installer beim Update und Deinstallieren selbst. Der Installer ist nicht signiert (kein Zertifikat), Windows SmartScreen warnt deshalb beim ersten Start. Selbsttest des gebauten Stands: `DOOMSCROLL_SMOKE_DIR=<ordner>` setzen und `dist/win-unpacked/"Doomscroll Desktop.exe" --smoke` starten.
+Ergebnis: `desktop/dist/Doomscroll-Desktop-Setup-<version>.exe` (NSIS, Windows x64, Installation pro Benutzer, Zielordner wählbar) und der entpackte Stand `desktop/dist/win-unpacked/`. Erweiterung und Kopplungs-Host liegen im installierten Stand unter `resources/extension` und `resources/native-host` (als `extraResources`, weil Browser nicht aus `asar` laden); der Reiter „Erweiterung“ kennt den Pfad und bietet „Ordner öffnen“ und „Pfad kopieren“ an. Im Entwicklungsstand ist es `desktop/extension`. Es gibt eine Startmenü-, aber keine Desktop-Verknüpfung. Beim Deinstallieren entfernt `installer/installer.nsh` den Autostart-Eintrag (Name wie die AppUserModelID in `main.js`) und die fünf Native-Messaging-Einträge der App (bei einem Update bleibt alles stehen); die Daten in `%APPDATA%\doomscroll-desktop` bleiben bewusst erhalten, damit Deinstallieren und Neuinstallieren das Tageslimit nicht zurücksetzt. Eine laufende App beendet der Installer beim Update und Deinstallieren selbst. Der Installer ist nicht signiert (kein Zertifikat), Windows SmartScreen warnt deshalb beim ersten Start. Selbsttest des gebauten Stands: `DOOMSCROLL_SMOKE_DIR=<ordner>` setzen und `dist/win-unpacked/"Doomscroll Desktop.exe" --smoke` starten.
 
 ## Browser-Erweiterung
 
 `extension/` ist eine Manifest-V3-Erweiterung für Chrome, Edge, Brave und Firefox (ab 121). Sie meldet alle 2 Sekunden die Adressen der aktiven Tabs an die App und leitet Tabs, die die App sperrt, auf „Genug für heute!“ bzw. „Diese Seite ist gesperrt“ um. Gezählt und entschieden wird nur in der App. Die Sperrseite kommt vom lokalen Server der App (`http://127.0.0.1:47615/blocked`) und nicht aus der Erweiterung, weil Chrome Erweiterungsseiten nicht in private Tabs lädt, solange die Erweiterung `incognito: "spanning"` hat.
 
-- Chrome, Edge, Brave: Erweiterungen, Entwicklermodus, „Entpackte Erweiterung laden“, Ordner `desktop/extension` (installiert: der Pfad aus dem Reiter „Erweiterung“). Chrome zeigt eine Warnung zu `background.scripts`: Das Manifest enthält absichtlich `service_worker` (Chrome) und `scripts` (Firefox) in einer Datei.
-- Firefox: `about:debugging`, „Dieser Firefox“, „Temporäres Add-on laden“, `desktop/extension/manifest.json` (bleibt bis zum Neustart des Browsers; eine dauerhafte Installation braucht eine signierte Fassung).
-- Danach im Reiter „Erweiterung“ der App den Kopplungscode kopieren und in den Einstellungen der Erweiterung einfügen.
+### Einrichtung (Reiter „Erweiterung“ in der App)
+
+Die App erkennt installierte Browser (Chrome, Edge, Brave, Firefox; Standardpfade, dann Registry „App Paths“) und führt durch die Schritte für den gewählten Browser:
+
+1. „<Browser> öffnen und Erweiterungsseite zeigen“ startet den Browser mit `chrome://extensions`, `edge://extensions`, `brave://extensions` bzw. `about:debugging#/runtime/this-firefox`.
+2. Chrome, Edge, Brave: Entwicklermodus einschalten, „Entpackte Erweiterung laden“, den Ordner wählen. Der Reiter zeigt den richtigen Pfad (im installierten Stand `<Installationsordner>\resources\extension`, im Entwicklungsstand `desktop/extension`) mit „Ordner öffnen“ und „Pfad kopieren“. Chrome zeigt eine Warnung zu `background.scripts`: Das Manifest enthält absichtlich `service_worker` (Chrome) und `scripts` (Firefox) in einer Datei.
+3. Private Fenster erlauben: „Detailseite der Erweiterung öffnen“ springt auf `chrome://extensions/?id=<ID>` (Edge, Brave entsprechend); dort „In Inkognito zulassen“ bzw. „In InPrivate zulassen“ einschalten. Firefox hat keine solche Adresse: `about:addons`, „In privaten Fenstern ausführen“ auf „Erlauben“.
+4. Der Status je Browser zeigt live „Erweiterung verbunden“, „Erweiterung fehlt“ (Browser läuft, Erweiterung meldet sich nicht), „Browser nicht gestartet“ und „Private Fenster nicht erlaubt“. Chrome und Brave lassen sich für die Erweiterung nicht immer unterscheiden (Label „Chrome oder Brave“); die Oberfläche weist darauf hin.
+
+Firefox: Mit „Temporäres Add-on laden“ bleibt die Erweiterung nur bis zum Neustart von Firefox. Eine dauerhafte Installation braucht eine von Mozilla signierte Fassung; die gibt es noch nicht.
+
+Hat sich noch nie eine Erweiterung verbunden, öffnet sich das Fenster beim ersten Start (und später beim Öffnen aus dem Tray) auf diesem Reiter. Autostart-Starts mit `--hidden` zeigen kein Fenster.
+
+### Bleibt die Erweiterung nach einem Browser-Neustart?
+
+- **Chrome, Edge, Brave (entpackt geladen):** Ja, geladene entpackte Erweiterungen bleiben über Neustarts bestehen, solange der Ordner da ist (hier fest `<Installationsordner>\resources\extension`, feste ID). Chrome und Edge zeigen unter Windows beim Start unter Umständen „Erweiterungen im Entwicklermodus deaktivieren“; Microsoft erlaubt nicht, das für Edge abzuschalten, bei Chrome geht es nur per Richtlinie oder Patch von `chrome.dll` (nicht gemacht). Schaltet der Browser die Erweiterung trotzdem aus, zeigt die App „Erweiterung fehlt“ (Hinweis und Statusanzeige) und der Reiter „Erweiterung“ den Weg zurück. Ob ein Browser entpackte Erweiterungen nach längerer Zeit von selbst abschaltet, ist nicht geprüft (Stand der Websuche: keine Belege dafür).
+- **Fest per Richtlinie (`ExtensionInstallForcelist`) für Chrome und Edge:** geht nach Stand der Suche für Erweiterungen außerhalb des Stores nur auf verwalteten Rechnern (Domäne, Firmenverwaltung); auf einem privaten Windows-PC ist es für Chrome nicht vorgesehen, bei Edge widersprechen sich die Berichte (Windows 10 und 11). Hier nicht umgesetzt. Als Alternative bleibt eine Veröffentlichung im Chrome Web Store (auch „nicht gelistet“) bzw. in den Edge Add-ons: dann installiert der Browser sie selbst und hält sie aktuell. Das ist nicht umgesetzt und braucht ein Entwicklerkonto.
+- **Firefox:** Temporär geladene Add-ons gehen beim Neustart verloren; dauerhaft geht nur eine von Mozilla signierte Fassung. Dafür gibt es den Weg „unlisted“-Signatur über addons.mozilla.org, und der Installer trägt die signierte Datei per Firefox-Richtlinie ein (siehe unten).
+
+#### Firefox dauerhaft (signierte Fassung und Richtlinie)
+
+1. Schlüssel von addons.mozilla.org (Developer Hub, „Manage API Keys“) in die Umgebungsvariablen `AMO_JWT_ISSUER` und `AMO_JWT_SECRET` legen, nie in eine Datei oder in den Chat.
+2. `cd desktop && npm run firefox:signieren` lädt `extension/` als „unlisted“ hoch (Prüfung durch Mozilla dauert meist Minuten) und legt die signierte Datei als `desktop/firefox/doomscroll-blocker.xpi` ab; diese Datei committen. Ohne Schlüssel baut `npm run firefox:signieren -- --nur-paket <Ziel.zip>` nur das ZIP zum Hochladen von Hand. Jede Änderung in `extension/` braucht vorher eine höhere `version` in `extension/manifest.json` (die Gecko-ID `doomscroll-blocker@doomscroll.local` bleibt) und eine neue Signatur; ein Test warnt, wenn die `.xpi` nicht zur Version passt.
+3. `npm run dist` liefert die `.xpi` unter `resources\firefox` mit (ohne Datei bleibt alles wie bisher). Der Installer trägt bei „Für alle Benutzer installieren“ den Pfad unter `HKLM\SOFTWARE\Policies\Mozilla\Firefox\Extensions\Install` ein (Werte `1`, `2`, …, bestehende Einträge bleiben), bei „Nur für mich“ unter HKCU. Der Deinstaller entfernt genau diesen Wert, ein Update lässt ihn stehen. Firefox installiert die Erweiterung beim nächsten Start; `about:policies` zeigt die Richtlinie. Der Reiter „Erweiterung“ erkennt den Eintrag und führt dann nur noch durch „Firefox neu starten“ und die Erlaubnis für private Fenster.
+4. Grenzen: Die Richtlinie `Install` sperrt die Erweiterung nicht; der User kann sie in `about:addons` deaktivieren oder entfernen (Firefox installiert sie beim Start wieder, solange der Eintrag steht). Fest sperren ginge mit `Extensions\Locked`, das macht die App bewusst nicht (siehe „Fest erzwingen“ im Reiter). Ob Firefox die Richtlinie unter HKCU liest und ob sie mit einem lokalen Pfad auf der echten Firefox-Version greift, ist nicht geprüft; Mozilla rät grundsätzlich davon ab, dass Installer die Registry dafür nutzen.
+
+### Automatische Kopplung (Native Messaging)
+
+Die Erweiterung holt Kopplungscode und Port selbst bei der App, ohne dass jemand etwas kopiert:
+
+- Die App schreibt bei jedem Start (nur Änderungen) in `%APPDATA%\doomscroll-desktop\native-host\` die Startdatei `host.cmd`, die Host-Manifeste `host-chromium.json` (`allowed_origins`: genau die feste Erweiterungs-ID) und `host-firefox.json` (`allowed_extensions`: genau `doomscroll-blocker@doomscroll.local`) und die Kopplungsdatei `pairing.json` (Code und Port). Dazu trägt sie unter HKCU (kein Administrator nötig) `...\NativeMessagingHosts\de.doomscroll.desktop` für Chrome, Edge, Brave, Chromium und Firefox ein.
+- Der Host `native-host/host.js` läuft über `host.cmd` als `ELECTRON_RUN_AS_NODE` mit der Exe der App (kein separates Node nötig, kein Fenster). Er versteht nur `{"type":"pair"}`, antwortet mit Code und Port aus `pairing.json` und beendet sich, wenn der Browser die Leitung schließt. Er liest sonst nichts, schreibt nichts, öffnet kein Netz und startet nichts. Nachrichten über 1 KB und alles andere werden abgelehnt.
+- Die Erweiterung hat dafür eine feste ID (`key` im Manifest; die ID leitet `src/core/native-messaging.js` ab, ein Test prüft sie) und die Berechtigung `nativeMessaging`. Port und Code übernimmt sie nur, wenn die Antwort streng stimmt (64 Hex-Zeichen, Port 1024 bis 65535). `host_permissions` ist `http://127.0.0.1/*` (jeder Port, nur Loopback), weil die App über `DOOMSCROLL_PORT` einen anderen Port haben kann.
+- Lehnt die App den Code ab (z. B. weil sie ein neues Token bekam), holt die Erweiterung ihn neu, höchstens alle 30 Sekunden.
+- Als Rückfall bleibt der Kopplungscode von Hand (Reiter „Erweiterung“, „Kopplung von Hand“, in die Optionen der Erweiterung einfügen). Er gilt für den Standardport 47615.
+- Testläufe mit `DOOMSCROLL_NO_AUTOSTART=1` lassen den Autostart-Eintrag in Ruhe (sonst überschreibt ein Lauf aus dem Projektordner den Eintrag der installierten App).
 
 ### Private Fenster
 
-Das Manifest setzt `incognito: "spanning"`. Der Browser verlangt trotzdem, dass der User die Erweiterung einmal selbst für private Fenster erlaubt (Chrome: „In Inkognito zulassen“, Edge: „In InPrivate zulassen“, Firefox: „In privaten Fenstern ausführen“). Die Erweiterung meldet per `isAllowedIncognitoAccess()`, ob das erlaubt ist, und die App zeigt „Private Fenster nicht erlaubt“, solange es fehlt. Meldet sich bei laufendem Browser gar keine Erweiterung, zeigt die App „Meldet sich nicht“ und schickt (abschaltbar) eine Windows-Meldung.
+Das Manifest setzt `incognito: "spanning"`. Der Browser verlangt trotzdem, dass der User die Erweiterung einmal selbst für private Fenster erlaubt (siehe Einrichtung). Die Erweiterung meldet per `isAllowedIncognitoAccess()`, ob das erlaubt ist, und die App zeigt „Private Fenster nicht erlaubt“, solange es fehlt. Meldet sich bei laufendem Browser gar keine Erweiterung, zeigt die App „Erweiterung fehlt“ und schickt (abschaltbar) eine Windows-Meldung.
 
 Erzwingen ohne Zutun des Users geht nur mit Administratorrechten per Browser-Richtlinie. Das richtet die App nicht ein, sie erklärt es nur im Reiter „Erweiterung“.
 
-### Warum HTTP mit Token und nicht Native Messaging
+### Schutz des lokalen Servers
 
-Native Messaging braucht je Browser einen Registry-Eintrag, eine ausführbare Host-Datei und feste Erweiterungs-IDs (Chrome: Schlüssel im Manifest). Der lokale Server braucht nur einen festen Port und ein Token, das der User einmal einträgt. Geschützt ist er so:
+Die Daten laufen weiter über den lokalen HTTP-Server mit Token; Native Messaging liefert nur Code und Port. Geschützt ist er so:
 
-- lauscht nur auf `127.0.0.1:47615`, der Host-Header wird geprüft (gegen DNS-Rebinding)
+- lauscht nur auf `127.0.0.1` (Standardport 47615), der Host-Header wird geprüft (gegen DNS-Rebinding)
 - `Origin` muss fehlen oder `chrome-extension://` bzw. `moz-extension://` sein, Webseiten werden mit 403 abgewiesen
-- Bearer-Token aus 32 Zufallsbytes (steht in der Datendatei der App, nicht im Repo), Vergleich in konstanter Zeit
+- Bearer-Token aus 32 Zufallsbytes (steht in der Datendatei der App und in `pairing.json`, nicht im Repo), Vergleich in konstanter Zeit
 - kleine Anfragen, strenge Prüfung von Inhalt und Adressen (nur http/https), keine Adressen im Log
 
-Grenze: Ein anderes Programm, das den Code kennt oder die Datendatei lesen darf, kann Meldungen schicken. Das ist bei Native Messaging nicht grundsätzlich anders, solange es ohne Administratorrechte läuft.
+Grenze: Ein anderes Programm, das den Code kennt oder die Datendatei lesen darf, kann Meldungen schicken. Es kann außerdem selbst einen Host unter dem Namen eintragen oder den Host starten; ohne Administratorrechte ist das nicht zu verhindern, es gilt dieselbe Grenze wie für die Datendatei.
 
 ## Was wann zählt
 
@@ -58,11 +101,13 @@ Grenze: Ein anderes Programm, das den Code kennt oder die Datendatei lesen darf,
 
 ## Aufbau
 
-- `main.js`: Tray, Fenster, lokaler Server, Hintergrundprüfungen, Update-Suche. `preload.js`: schmale Brücke zur Oberfläche.
-- `src/core/`: reine Logik ohne Electron (`tracker`, `store`, `adult-filter`, `targets`, `unlock`, `backup`, `version`, `extension-status`).
-- `src/server.js`, `src/persist.js`, `src/updater.js`, `src/smoke.js` (Selbsttest `electron . --smoke` mit `DOOMSCROLL_SMOKE_DIR`).
+- `main.js`: Tray, Panel (klein und aufgeklappt), lokaler Server, Hintergrundprüfungen, Update-Suche, Start der Browser (nur aus fester Liste). `preload.js`: schmale Brücke zur Oberfläche.
+- `src/core/`: reine Logik ohne Electron (`tracker`, `store`, `adult-filter`, `targets`, `unlock`, `backup`, `version`, `extension-status`, `browsers` für Erkennung und Status, `native-messaging` für Manifeste, Registry-Schlüssel und IDs, `flyout` für Lage und Größe des Panels).
+- `assets/`: Logo der Handy-App (`logo.svg`, Quelle) und daraus erzeugt `icon.ico` (16 bis 256 px, für Exe und Installer), `icon.png`, `tray*.png` (16 px, dazu `@1.25x` bis `@3x`). `tools/make-icons.js` erzeugt sie samt `extension/icons/` neu: `npx electron tools/make-icons.js` (rendert mit dem Chromium von Electron, keine weitere Abhängigkeit). In der Glas-Stufe „voll“ zeigt die Kopfzeile `logo-glass.svg` (Glas-Fassung nach DESIGN.md 6c, gleiche Form; Symbole des Systems bleiben flach). Das Logo ist das Launcher-Icon der Handy-App (`app/src/main/res/drawable/ic_launcher_foreground.xml` auf dem Hintergrund `#D84343`). Ändert sich das Icon am Handy, `logo.svg` (und `logo-glass.svg`) anpassen und das Skript laufen lassen.
+- `src/core/firefox-policy.js` (Pfad der signierten `.xpi`, Richtlinien-Schlüssel, Lesen der Eintragung), `tools/firefox-signieren.js` (Signatur bei Mozilla, `npm run firefox:signieren`), `firefox/` (die signierte `doomscroll-blocker.xpi`, sobald es sie gibt).
+- `src/server.js`, `src/persist.js`, `src/updater.js`, `src/native-setup.js` (schreibt Manifeste und Registry), `src/smoke.js` (Selbsttest `electron . --smoke` mit `DOOMSCROLL_SMOKE_DIR`).
 - `src/ui/`: Oberfläche nach `C:\Claude\design\DESIGN.md` (Glas aus, einfach, voll; Hell, Dunkel; Animationen und Schriftgröße einstellbar).
-- `extension/`: die Browser-Erweiterung. `test/`: `npm test` (`node --test`).
+- `extension/`: die Browser-Erweiterung. `native-host/host.js`: der Kopplungs-Host. `test/`: `npm test` (`node --test`).
 
 ## Updates und Release
 

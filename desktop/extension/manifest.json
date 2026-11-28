@@ -2,14 +2,15 @@
   "manifest_version": 3,
   "name": "Doomscroll Blocker",
   "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAztBOF3eWr01IZAdk/zc+DxUQ0YO8YldRXPNH2P575ieq9Ppw2Ej123Bl4hSgPA/UzwCWxe3BOlQ9ozaT3ik5eEslX96KK80C5UJPBTPjKQ3KUEr844/i5dagyAxP+4EA8YZZOvV8h3mw4t8aSeLQ8rzMr4ISHjhT2cnvkN5RTFSCbDOKA1s8wz+7qprsV5CEmXLEheWahhZserqhs3nMzd4SbTpJoKV1R1WpoMHbaeS+Iqoc/W3+EiwBUZ07aRWmnx6uDFyVf9Jock5uyisGjZQZktS0lwfwpHs1sD0x6YBvRMwhoGkGTWLVX/iVu8r906oGZetpAGeHQmGDQ4SBzQIDAQAB",
   "description": "Meldet der Doomscroll-Blocker-App auf diesem Rechner, welche Seite offen ist, und sperrt Instagram Reels, YouTube Shorts, TikTok und Porno-Seiten, wenn die App es verlangt.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-  "permissions": ["tabs", "storage", "alarms"],
-  "host_permissions": ["http://127.0.0.1:47615/*"],
+  "permissions": ["tabs", "storage", "alarms", "nativeMessaging"],
+  "host_permissions": ["http://127.0.0.1/*"],
   "background": {
     "service_worker": "background.js",
     "scripts": ["background.js"]
