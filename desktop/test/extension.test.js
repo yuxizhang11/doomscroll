@@ -171,3 +171,36 @@ test('Erweiterung: ein falscher Code wird über die Kopplung berichtigt, ein fal
   assert.equal(storage.token, TOKEN);
   assert.equal(storage.status.ok, true);
 });
+
+test('Erweiterung: die eigene Sperrseite der App gilt nicht erneut als Porno-Adresse (keine Neulade-Schleife)', async (t) => {
+  const SELF_PORT = 47638;
+  const store = new Store({});
+  const tracker = new Tracker(store);
+  const server = await start({ token: TOKEN, port: SELF_PORT, onHeartbeat: (c, i, tb) => tracker.report(c, i, tb) }).catch((err) => err);
+  if (server instanceof Error) return t.skip(`Port ${SELF_PORT} belegt (${server.code})`);
+  t.after(() => server.close());
+
+  // Die Sperrseite enthält selbst „porn“ (kind=porn); sie wurde früher wieder gesperrt, also endlos neu geladen.
+  const tabs = [{ id: 5, url: `http://127.0.0.1:${SELF_PORT}/blocked?kind=porn`, windowId: 1, incognito: true }];
+  const storage = { token: TOKEN, port: SELF_PORT };
+  const { api, listeners, calls } = fakeBrowser(tabs, storage);
+  await loadBackground(api);
+  for (let i = 0; i < 3; i++) {
+    listeners.onMessage({ type: 'beat' });
+    await wait(250);
+  }
+  assert.equal(storage.status.ok, true);
+  assert.deepEqual(calls.update, [], 'die Sperrseite wird nicht erneut umgeleitet');
+
+  // Eng gefasst: derselbe Pfad auf einem anderen Port, ein anderer Pfad auf dem App-Port und eine echte Porno-Seite bleiben gesperrt.
+  const others = [
+    { id: 6, url: `http://127.0.0.1:${SELF_PORT + 1}/blocked?kind=porn` },
+    { id: 7, url: `http://127.0.0.1:${SELF_PORT}/anders?q=porn` },
+    { id: 8, url: 'https://www.pornhub.com/' },
+  ].map((x) => ({ ...x, windowId: 1, incognito: false }));
+  const b2 = fakeBrowser(others, storage);
+  await loadBackground(b2.api);
+  b2.listeners.onMessage({ type: 'beat' });
+  await wait(300);
+  assert.deepEqual(b2.calls.update.map((u) => u.id).sort(), [6, 7, 8]);
+});

@@ -56,6 +56,12 @@ function parseHeartbeat(body) {
   };
 }
 
+/** Ist das die eigene Sperrseite dieser App? Sie enthält selbst „porn“ und darf nicht erneut gesperrt werden (sonst lädt sie endlos neu). */
+function isOwnBlockedPage(url, port) {
+  const u = parseWebUrl(url);
+  return u !== null && u.protocol === 'http:' && u.hostname === '127.0.0.1' && u.port === String(port) && u.pathname === '/blocked';
+}
+
 /**
  * @param {{token: string, port?: number, onHeartbeat: (clientId: string, info: object, tabs: object[]) => object}} options
  * @returns {Promise<http.Server>} läuft, sobald der Port offen ist; schlägt mit EADDRINUSE fehl, wenn er belegt ist
@@ -123,7 +129,7 @@ function start({ token, port = DEFAULT_PORT, onHeartbeat }) {
       if (!parsed) return send(400, { error: 'body' });
       let answer;
       try {
-        answer = onHeartbeat(parsed.client, parsed.info, parsed.tabs);
+        answer = onHeartbeat(parsed.client, parsed.info, parsed.tabs.filter((t) => !isOwnBlockedPage(t.url, port)));
       } catch {
         return send(500, { error: 'internal' });
       }
